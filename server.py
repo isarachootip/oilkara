@@ -112,7 +112,7 @@ def fetch_playlist(list_id, key, limit=200):
                                     "key": key, **({"pageToken": token} if token else {})})
         j = http_json(f"https://www.googleapis.com/youtube/v3/playlistItems?{q}")
         if "error" in j:
-            return out, j["error"].get("message", "ดึงเพลย์ลิสต์ไม่ได้")
+            return out, api_error(j, "ดึงเพลย์ลิสต์ไม่ได้")
         for it in j.get("items", []):
             s = it.get("snippet", {})
             vid = (s.get("resourceId") or {}).get("videoId")
@@ -124,12 +124,20 @@ def fetch_playlist(list_id, key, limit=200):
     return out, None
 
 
+QUOTA_MSG = "โควตาค้นหา YouTube ของวันนี้หมดแล้ว (รีเซ็ตประมาณบ่ายสองโมง) ระหว่างนี้วางลิงก์ YouTube แทนได้ ไม่ใช้โควตา"
+
+
+def api_error(j, fallback):
+    msg = (j.get("error") or {}).get("message", fallback)
+    return QUOTA_MSG if "quota" in msg.lower() else msg
+
+
 def yt_search(q, key, max_results=15):
     params = urllib.parse.urlencode({"part": "snippet", "type": "video", "videoEmbeddable": "true",
                                      "maxResults": max_results, "q": q, "key": key})
     j = http_json(f"https://www.googleapis.com/youtube/v3/search?{params}")
     if "error" in j:
-        return None, j["error"].get("message", "ค้นหาไม่สำเร็จ")
+        return None, api_error(j, "ค้นหาไม่สำเร็จ")
     import html
     res = [{"id": it["id"]["videoId"],
             "title": html.unescape(it["snippet"]["title"]),
@@ -540,7 +548,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "ยังไม่ได้ตั้ง YouTube API key ที่จอหลัก"}, 400)
             res, err = yt_search(q, STATE["apiKey"])
             if err:
-                return self.send_json({"error": err}, 502)
+                return self.send_json({"error": err, "quota": err == QUOTA_MSG}, 502)
             self.send_json({"results": res})
         elif path == "/favicon.ico":
             self.send_response(204)

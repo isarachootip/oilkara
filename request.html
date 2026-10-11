@@ -187,7 +187,7 @@ input[type=text],input[type=search]{width:100%;min-width:0;background:var(--stag
     const box = $('#results'); box.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
     try {
       const r = await fetch('/api/search?q=' + encodeURIComponent(q)); const j = await r.json();
-      if (!r.ok) { box.innerHTML = `<li class="empty">${esc(j.error || 'ค้นหาไม่สำเร็จ')}</li>`; return; }
+      if (!r.ok) { box.innerHTML = `<li class="empty">${esc(j.error || 'ค้นหาไม่สำเร็จ')}${j.quota ? `<div style="margin-top:10px"><a class="btn primary sm" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">ค้นใน YouTube แทน</a></div><div class="hint" style="margin-top:6px">เลือกเพลง → แชร์ → คัดลอกลิงก์ → วางในช่อง “วางลิงก์ YouTube”</div>` : ''}</li>`; return; }
       results = j.results || []; box.innerHTML = '';
       if (!results.length) { box.innerHTML = `<li class="empty">ไม่พบเพลง ลองคำค้นอื่น</li>`; return; }
       results.forEach((it, i) => {

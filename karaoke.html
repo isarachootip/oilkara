@@ -642,7 +642,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     if (!S.hasKey) { window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank', 'noopener'); return; }
     const res = $('#results'); res.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
     const r = await fetch('/api/search?q=' + encodeURIComponent(q)); const j = await r.json().catch(() => ({}));
-    if (!r.ok) { res.innerHTML = `<li class="empty"><b>ค้นหาไม่สำเร็จ</b>${esc(j.error || '')}</li>`; return; }
+    if (!r.ok) { res.innerHTML = `<li class="empty"><b>${j.quota ? 'โควตาค้นหาวันนี้หมดแล้ว' : 'ค้นหาไม่สำเร็จ'}</b>${esc(j.error || '')}${j.quota ? `<div style="margin-top:10px"><a class="btn sm primary" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">ค้นใน YouTube แทน</a></div><div class="hint" style="margin-top:6px">เลือกเพลง → แชร์ → คัดลอกลิงก์ → กลับมาวางในช่องค้นหานี้</div>` : ''}</li>`; return; }
     lastResults = j.results || []; res.innerHTML = '';
     if (!lastResults.length) { res.innerHTML = `<li class="empty"><b>ไม่พบเพลง</b>ลองใช้คำค้นอื่น</li>`; return; }
     lastResults.forEach((it, i) => {
@@ -748,7 +748,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     const q = kindOf(editing) === 'karaoke' && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
     const box = $('#edResults'); box.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
     const r = await fetch('/api/search?q=' + encodeURIComponent(q)); const j = await r.json().catch(() => ({}));
-    if (!r.ok) { box.innerHTML = `<li class="empty"><b>ค้นหาไม่สำเร็จ</b>${esc(j.error || '')}</li>`; return; }
+    if (!r.ok) { box.innerHTML = `<li class="empty"><b>${j.quota ? 'โควตาค้นหาวันนี้หมดแล้ว' : 'ค้นหาไม่สำเร็จ'}</b>${esc(j.error || '')}${j.quota ? `<div style="margin-top:10px"><a class="btn sm primary" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">ค้นใน YouTube แทน</a></div><div class="hint" style="margin-top:6px">เลือกเพลง → แชร์ → คัดลอกลิงก์ → กลับมาวางในช่องค้นหานี้</div>` : ''}</li>`; return; }
     edResults = j.results || []; box.innerHTML = '';
     if (!edResults.length) { box.innerHTML = `<li class="empty"><b>ไม่พบเพลง</b>ลองใช้คำค้นอื่น</li>`; return; }
     edResults.forEach((it, i) => {
