@@ -139,7 +139,8 @@ def yt_search(q, key):
 
 
 # ---------------------------------------------------------------- state
-STATE = {"now": None, "queue": [], "history": [], "saved": {}, "apiKey": "", "autoNext": True, "partyName": "", "ver": 1}
+STATE = {"now": None, "queue": [], "history": [], "saved": {}, "apiKey": "", "autoNext": True, "partyName": "", "mode": "karaoke", "ver": 1}
+MODES = ("karaoke", "music")  # karaoke: sing-along with countdowns; music: songs to listen to back to back
 # live, not saved to disk: TV heartbeat, what the TV player is doing, remote commands for it
 RUNTIME = {"tvSeen": 0.0, "player": {}, "cmd": {"id": 0, "cmd": None}}
 
@@ -167,6 +168,16 @@ def bump():
     save_state()
 
 
+def norm_list(v):
+    """Saved playlists: {"type": "karaoke"|"music", "items": [...]}; older saves were a bare list (karaoke)."""
+    if isinstance(v, list):
+        return {"type": "karaoke", "items": [x for x in v if isinstance(x, dict)]}
+    if isinstance(v, dict):
+        t = v.get("type") if v.get("type") in MODES else "karaoke"
+        return {"type": t, "items": [x for x in (v.get("items") or []) if isinstance(x, dict)]}
+    return {"type": "karaoke", "items": []}
+
+
 def tv_online():
     return time.time() - RUNTIME["tvSeen"] < TV_TIMEOUT
 
@@ -174,8 +185,8 @@ def tv_online():
 def public_state():
     online = tv_online()
     return {"now": STATE["now"], "queue": STATE["queue"], "history": STATE["history"][:50],
-            "saved": STATE["saved"], "hasKey": bool(STATE["apiKey"]), "autoNext": STATE.get("autoNext", True),
-            "partyName": STATE.get("partyName", ""),
+            "saved": {k: norm_list(v) for k, v in STATE["saved"].items()}, "hasKey": bool(STATE["apiKey"]), "autoNext": STATE.get("autoNext", True),
+            "partyName": STATE.get("partyName", ""), "mode": STATE.get("mode", "karaoke"),
             "ver": STATE["ver"], "tvOnline": online, "player": RUNTIME["player"] if online else {},
             "cmd": RUNTIME["cmd"]}
 
@@ -310,6 +321,11 @@ def handle_action(body):
             RUNTIME["cmd"] = {"id": RUNTIME["cmd"]["id"] + 1, "cmd": cmd}
             return {"state": public_state()}  # live only, nothing to save
 
+        elif t == "setMode":
+            if body.get("mode") not in MODES:
+                return {"error": "ไม่รู้จักโหมด", "status": 400}
+            STATE["mode"] = body["mode"]
+
         elif t == "setPartyName":
             STATE["partyName"] = str(body.get("name", "")).strip()[:60]
 
@@ -329,9 +345,12 @@ def handle_action(body):
                      for it in ([STATE["now"]] if STATE["now"] else []) + q]
             if not items:
                 return {"error": "คิวยังว่าง เพิ่มเพลงก่อนบันทึก", "status": 400}
-            STATE["saved"][name] = items
+            kind = body.get("kind") if body.get("kind") in MODES else STATE.get("mode", "karaoke")
+            STATE["saved"][name] = {"type": kind, "items": items}
         elif t == "loadList":
-            src = STATE["saved"].get(body.get("name"), [])
+            lst = norm_list(STATE["saved"].get(body.get("name"), []))
+            src = lst["items"]
+            STATE["mode"] = lst["type"]  # loading a playlist switches the room to its type
             if body.get("mode") == "replace":
                 q.clear()
                 if STATE["now"]:
@@ -347,8 +366,8 @@ def handle_action(body):
             data = body.get("saved") or {}
             if isinstance(data, dict):
                 for name, lst in data.items():
-                    if isinstance(lst, list):
-                        STATE["saved"][str(name)[:60]] = [x for x in lst if isinstance(x, dict)]
+                    if isinstance(lst, (list, dict)):
+                        STATE["saved"][str(name)[:60]] = norm_list(lst)
         else:
             return {"error": "ไม่รู้จักคำสั่ง", "status": 400}
 

@@ -62,7 +62,7 @@ input[type=text],input[type=search]{width:100%;min-width:0;background:var(--stag
 </style>
 </head>
 <body>
-<div class="now"><div class="lbl">กำลังร้อง</div><div class="t" id="nowT">—</div></div>
+<div class="now"><div class="lbl" id="nowLbl">กำลังร้อง</div><div class="t" id="nowT">—</div></div>
 <main>
   <div><div class="party" id="party" hidden></div><h1><span class="dot"></span>ขอเพลง</h1></div>
   <div class="off" id="off" hidden>เชื่อมต่อห้องคาราโอเกะไม่ได้ ตรวจว่ามือถือต่อ Wi-Fi วงเดียวกับเครื่องที่เปิดจอหลัก</div>
@@ -70,7 +70,7 @@ input[type=text],input[type=search]{width:100%;min-width:0;background:var(--stag
   <section class="card">
     <h2>ชื่อคุณ</h2>
     <input type="text" id="name" placeholder="เช่น ออย" maxlength="40" autocomplete="nickname">
-    <p class="hint">ชื่อจะขึ้นบนจอตอนถึงคิวคุณ</p>
+    <p class="hint" id="nameHint">ชื่อจะขึ้นบนจอตอนถึงคิวคุณ</p>
   </section>
 
   <section class="card">
@@ -79,7 +79,7 @@ input[type=text],input[type=search]{width:100%;min-width:0;background:var(--stag
       <input type="search" id="q" placeholder="ชื่อเพลง หรือ ศิลปิน" autocomplete="off" enterkeyhint="search">
       <button class="btn primary" type="submit">ค้นหา</button>
     </form>
-    <label class="toggle"><input type="checkbox" id="kara" checked> เติมคำว่า “คาราโอเกะ”</label>
+    <label class="toggle" id="karaToggle"><input type="checkbox" id="kara" checked> เติมคำว่า “คาราโอเกะ”</label>
     <p class="hint" id="searchHint"></p>
     <ul class="list results" id="results"></ul>
     <h2 style="margin-top:6px">หรือวางลิงก์ YouTube</h2>
@@ -127,12 +127,16 @@ input[type=text],input[type=search]{width:100%;min-width:0;background:var(--stag
     const pn = (S.partyName || '').trim();
     $('#party').textContent = pn; $('#party').hidden = !pn;
     document.title = pn ? `ขอเพลง · ${pn}` : 'ขอเพลง · Oilkara';
+    const music = S.mode === 'music';
+    $('#nowLbl').textContent = music ? 'กำลังเล่น' : 'กำลังร้อง';
+    $('#nameHint').textContent = music ? 'ชื่อจะขึ้นบนจอว่าใครขอเพลงนี้' : 'ชื่อจะขึ้นบนจอตอนถึงคิวคุณ';
+    $('#karaToggle').hidden = music;
     $('#nowT').innerHTML = S.now ? esc(S.now.title) + (S.now.singer ? ` <em>— ${esc(S.now.singer)}</em>` : '') : 'ยังไม่มีเพลง ขอเพลงแรกได้เลย';
     $('#searchHint').textContent = S.hasKey ? '' : 'ปุ่มค้นหาจะเปิด YouTube ให้เลือกเพลง จากนั้นกด “แชร์ → คัดลอกลิงก์” แล้วกลับมาวางด้านล่าง';
     const q = $('#queue'); q.innerHTML = '';
     const mineNow = S.now && S.now.by === me.client;
     const myPos = S.queue.map((x, i) => x.by === me.client ? i + 1 : 0).filter(Boolean);
-    $('#mystat').textContent = mineNow ? 'ถึงคิวคุณแล้ว ร้องเลย!' : myPos.length ? `เพลงของคุณอยู่คิวที่ ${myPos.join(', ')}` : '';
+    $('#mystat').textContent = mineNow ? (S.mode === 'music' ? 'เพลงที่คุณขอกำลังเล่นอยู่' : 'ถึงคิวคุณแล้ว ร้องเลย!') : myPos.length ? `เพลงของคุณอยู่คิวที่ ${myPos.join(', ')}` : '';
     if (!S.queue.length) { q.innerHTML = `<li class="empty">คิวว่าง เพลงที่ขอจะเล่นต่อจากเพลงนี้ทันที</li>`; return; }
     S.queue.forEach((it, i) => {
       const mine = it.by === me.client;
@@ -178,7 +182,7 @@ input[type=text],input[type=search]{width:100%;min-width:0;background:var(--stag
     e.preventDefault();
     const raw = $('#q').value.trim(); if (!raw) return;
     if (/youtu\.?be/.test(raw)) { if (await request({ text:raw })) $('#q').value = ''; return; }
-    const q = me.kara && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
+    const q = S.mode !== 'music' && me.kara && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
     if (!S.hasKey) { window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank', 'noopener'); return; }
     const box = $('#results'); box.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
     try {

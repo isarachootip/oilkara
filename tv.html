@@ -83,7 +83,7 @@ body.hide-cursor{cursor:none}
 <div class="corner" id="corner" hidden><div class="qrbox" data-qr></div><span>สแกนขอเพลง</span></div>
 
 <div class="lower off" id="lower">
-  <div class="lbl">กำลังร้อง</div>
+  <div class="lbl" id="lowLbl">กำลังร้อง</div>
   <div class="t" id="lowT"></div>
   <div class="who" id="lowWho"></div>
 </div>
@@ -201,7 +201,8 @@ body.hide-cursor{cursor:none}
   function onState(e){
     playing = e.data === YT.PlayerState.PLAYING;
     if (e.data === YT.PlayerState.ENDED && S.now) {
-      if (S.queue.length && S.autoNext !== false) showOverlay();
+      // music mode plays straight through; karaoke shows the next-singer countdown
+      if (S.queue.length && S.autoNext !== false) { S.mode === 'music' ? act('next', { expect:S.now.uid }) : showOverlay(); }
       else if (!S.queue.length) act('next', { expect:S.now.uid });
     }
   }
@@ -209,7 +210,9 @@ body.hide-cursor{cursor:none}
   let lowerT = null;
   function showLower(){
     $('#lowT').textContent = S.now.title;
-    $('#lowWho').textContent = S.now.singer ? `ผู้ร้อง: ${S.now.singer}` : '';
+    const music = S.mode === 'music';
+    $('#lowLbl').textContent = music ? 'กำลังเล่น' : 'กำลังร้อง';
+    $('#lowWho').textContent = S.now.singer ? `${music ? 'ขอโดย' : 'ผู้ร้อง'}: ${S.now.singer}` : '';
     $('#lower').classList.remove('off');
     clearTimeout(lowerT); lowerT = setTimeout(() => $('#lower').classList.add('off'), 7000);
   }

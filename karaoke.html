@@ -51,6 +51,18 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .overlay .count{font:600 3rem var(--f-display);font-variant-numeric:tabular-nums;color:var(--lyric)}
 .overlay .row{display:flex;gap:10px}
 .start{background:#120d18f2;flex-direction:column;gap:14px;z-index:5}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.seg button{background:none;border:0;padding:7px 12px;color:var(--muted);font:500 .9rem var(--f-display);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--lyric);color:var(--lyric-ink)}
+.modepick{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:640px}
+.modecard{flex:1 1 220px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;color:var(--ink)}
+.modecard:hover,.modecard:focus-visible{border-color:var(--lyric)}
+.modecard b{font:600 1.2rem var(--f-display)}
+.modecard span{font-size:.88rem;color:var(--muted);line-height:1.45}
+.modecard.cur{border-color:var(--lyric);box-shadow:0 0 0 1px var(--lyric) inset}
+.kind{font-size:.75rem;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.kind.karaoke{color:var(--lyric);border-color:#ffb43d55}
+.kind.music{color:var(--cue);border-color:#7fd6c255}
 .remote{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:24px;
   background:radial-gradient(ellipse at 50% 120%,#1f3a37 0%,#120d18 65%)}
 .remote .lbl{color:var(--cue)}
@@ -135,6 +147,10 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
   <header class="top">
     <div class="brand"><span class="dot" id="dot" title="สถานะการเชื่อมต่อ"></span><span id="brandName">Oilkara</span> <small>ห้องคาราโอเกะ YouTube · มือถือสแกน QR ขอเพลงได้</small></div>
     <div class="controls">
+      <div class="seg" id="modeSeg" role="group" aria-label="ประเภทห้อง">
+        <button data-mode="karaoke" aria-pressed="true" title="ค้นหาเวอร์ชันคาราโอเกะ นับถอยหลังระหว่างเพลง">🎤 คาราโอเกะ</button>
+        <button data-mode="music" aria-pressed="false" title="เพลงต้นฉบับ เล่นต่อกันทันที">🎵 เพลงฟัง</button>
+      </div>
       <label class="toggle"><input type="checkbox" id="autoNext" checked> เล่นเพลงถัดไปอัตโนมัติ</label>
       <button class="btn sm" id="openTv" title="เปิดหน้าต่างสำหรับจอทีวี แล้วลากไปไว้บนทีวี">📺 เปิดจอทีวี</button>
     </div>
@@ -174,15 +190,18 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
           <p>หน้านี้เป็นรีโมตแล้ว ปุ่มเล่น/หยุด เริ่มใหม่ ข้ามเพลง และคิว จะสั่งจอทีวีโดยตรง ปิดหน้าจอทีวีเมื่อไรก็กลับมาเล่นที่นี่ได้</p>
         </div>
         <div class="start" id="start">
-          <h2>เปิดห้องคาราโอเกะ</h2>
-          <p>กดหนึ่งครั้งเพื่อให้เบราว์เซอร์ยอมเล่นเสียงอัตโนมัติ เพลงที่มือถือขอเข้ามาจะเล่นต่อกันเอง</p>
-          <button class="btn primary big" id="startBtn">▶ เริ่มเลย</button>
+          <h2>วันนี้เปิดเพลงแบบไหน</h2>
+          <p>เลือกก่อนเริ่ม เปลี่ยนทีหลังได้ที่ปุ่มมุมขวาบน</p>
+          <div class="modepick">
+            <button class="modecard" data-start="karaoke"><b>🎤 คาราโอเกะ</b><span>ค้นหาเวอร์ชันคาราโอเกะ มีชื่อคนร้อง นับถอยหลัง 5 วินาทีก่อนเพลงถัดไป</span></button>
+            <button class="modecard" data-start="music"><b>🎵 เพลงฟัง</b><span>เพลงต้นฉบับ เล่นต่อกันทันทีไม่มีพัก เหมาะเปิดคลอระหว่างงาน</span></button>
+          </div>
         </div>
       </div>
 
       <div class="nowbar">
         <div class="nowtext">
-          <div class="lbl">กำลังร้อง</div>
+          <div class="lbl" id="nowLbl">กำลังร้อง</div>
           <div class="nowtitle" id="nowTitle">—</div>
           <div class="wipe"><i id="wipe"></i></div>
           <div class="times" id="times">0:00 / 0:00</div>
@@ -213,7 +232,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
         </div>
         <div class="sec-title">ลำดับถัดไป <span><button class="btn ghost sm" id="shuffle">สุ่มลำดับ</button> <button class="btn ghost sm" id="clearQ">ล้างคิว</button></span></div>
         <ul class="list" id="queueList"></ul>
-        <div class="sec-title">ร้องไปแล้ว <button class="btn ghost sm" id="clearH">ล้าง</button></div>
+        <div class="sec-title"><span id="histLbl">ร้องไปแล้ว</span> <button class="btn ghost sm" id="clearH">ล้าง</button></div>
         <ul class="list" id="histList"></ul>
       </div>
 
@@ -223,7 +242,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
           <input id="q" placeholder="ชื่อเพลง หรือ ศิลปิน" autocomplete="off">
           <button class="btn primary" type="submit">ค้นหา</button>
         </form>
-        <label class="toggle"><input type="checkbox" id="addKaraoke" checked> เติมคำว่า “คาราโอเกะ” ในการค้นหา</label>
+        <label class="toggle" id="karaToggle"><input type="checkbox" id="addKaraoke" checked> เติมคำว่า “คาราโอเกะ” ในการค้นหา</label>
         <p class="hint" id="searchHint"></p>
         <ul class="list results" id="results"></ul>
         <div class="sec-title">วางหลายลิงก์พร้อมกัน</div>
@@ -253,11 +272,16 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
       </div>
 
       <div class="pane" id="tab-lists" hidden>
+        <div class="sec-title">บันทึกคิวนี้เป็นเพลย์ลิสต์</div>
+        <div class="seg" id="saveKind" role="group" aria-label="ประเภทเพลย์ลิสต์">
+          <button data-kind="karaoke" aria-pressed="true">🎤 เพลย์ลิสต์คาราโอเกะ</button>
+          <button data-kind="music" aria-pressed="false">🎵 เพลย์ลิสต์เพลงฟัง</button>
+        </div>
         <div class="field">
           <input id="listName" placeholder="ตั้งชื่อเพลย์ลิสต์ เช่น ปาร์ตี้วันเสาร์">
-          <button class="btn primary" id="saveList">บันทึกคิวนี้</button>
+          <button class="btn primary" id="saveList">บันทึก</button>
         </div>
-        <p class="hint">บันทึกเพลงที่กำลังร้องและคิวทั้งหมด เก็บไว้ในไฟล์ karaoke_data.json ข้างเซิร์ฟเวอร์</p>
+        <p class="hint">บันทึกเพลงที่กำลังเล่นและคิวทั้งหมด ตอนเปิดเพลย์ลิสต์ ห้องจะสลับเป็นประเภทของเพลย์ลิสต์นั้นให้เอง</p>
         <div id="savedLists" class="list"></div>
         <div class="sec-title">ย้ายไปเครื่องอื่น</div>
         <div class="field">
@@ -318,13 +342,31 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
   // live fields change without a queue version bump: TV presence, its progress, autoNext
   function updateLive(s){
     const wasTv = S.tvOnline;
-    S.tvOnline = s.tvOnline; S.player = s.player; S.autoNext = s.autoNext; S.partyName = s.partyName;
-    showParty();
+    S.tvOnline = s.tvOnline; S.player = s.player; S.autoNext = s.autoNext; S.partyName = s.partyName; S.mode = s.mode;
+    showParty(); applyMode();
     $('#autoNext').checked = s.autoNext !== false;
     if (wasTv !== s.tvOnline) { if (s.tvOnline) toast('จอทีวีเริ่มฉายแล้ว หน้านี้เป็นรีโมต'); syncPlayer(true); }
     if (s.tvOnline) $('#btnPlay').textContent = s.player?.playing ? '❚❚ หยุด' : '▶ เล่น';
   }
   const tvOn = () => !!S.tvOnline;
+  const isMusic = () => S.mode === 'music';
+  let saveKind = null;           // null: follow the room's current mode
+  function applyMode(){
+    const m = isMusic() ? 'music' : 'karaoke';
+    document.querySelectorAll('#modeSeg [data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m));
+    document.querySelectorAll('.modecard').forEach(b => b.classList.toggle('cur', b.dataset.start === m));
+    const k = saveKind || m;
+    document.querySelectorAll('#saveKind [data-kind]').forEach(b => b.setAttribute('aria-pressed', b.dataset.kind === k));
+    $('#nowLbl').textContent = isMusic() ? 'กำลังเล่น' : 'กำลังร้อง';
+    $('#histLbl').textContent = isMusic() ? 'เล่นไปแล้ว' : 'ร้องไปแล้ว';
+    $('#singerName').placeholder = isMusic() ? 'ขอโดย (ใส่หรือไม่ก็ได้)' : 'ชื่อผู้ร้อง (ใส่หรือไม่ก็ได้)';
+    $('#karaToggle').hidden = isMusic();
+  }
+  document.querySelectorAll('#modeSeg [data-mode]').forEach(b => b.onclick = () => {
+    if (b.dataset.mode === S.mode) return;
+    act('setMode', { mode:b.dataset.mode }).then(() => toast(b.dataset.mode === 'music' ? 'สลับเป็นโหมดเพลงฟัง: เล่นต่อกันทันที ค้นหาเพลงต้นฉบับ' : 'สลับเป็นโหมดคาราโอเกะ: นับถอยหลังระหว่างเพลง ค้นหาเวอร์ชันคาราโอเกะ'));
+  });
+  document.querySelectorAll('#saveKind [data-kind]').forEach(b => b.onclick = () => { saveKind = b.dataset.kind; applyMode(); });
   function showParty(){
     const name = (S.partyName || '').trim();
     $('#brandName').textContent = name || 'Oilkara';
@@ -390,8 +432,8 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     if (tvOn()) return;
     $('#btnPlay').textContent = playing ? '❚❚ หยุด' : '▶ เล่น';
     if (e.data === YT.PlayerState.ENDED && S.now) {
-      if (S.queue.length && S.autoNext !== false) showOverlay();
-      else if (!S.queue.length) { act('next', { expect:S.now.uid }); toast('จบคิวแล้ว สแกน QR หรือค้นหาเพื่อร้องต่อ'); }
+      if (S.queue.length && S.autoNext !== false) { isMusic() ? act('next', { expect:S.now.uid }) : showOverlay(); }
+      else if (!S.queue.length) { act('next', { expect:S.now.uid }); toast(isMusic() ? 'จบคิวแล้ว เพิ่มเพลงเพื่อเล่นต่อ' : 'จบคิวแล้ว สแกน QR หรือค้นหาเพื่อร้องต่อ'); }
     }
   }
   setInterval(() => {
@@ -407,10 +449,12 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
       $('#times').textContent = `${fmt(c)} / ${fmt(d)}`; } catch(e){}
   }, 500);
 
-  $('#startBtn').onclick = () => {
+  function startRoom(mode){
+    if (mode && mode !== S.mode) act('setMode', { mode });
     started = true; $('#start').hidden = true;
-    if (ready && S.now) player.loadVideoById(S.now.id);
-  };
+    if (ready && S.now && !tvOn()) player.loadVideoById(S.now.id);
+  }
+  document.querySelectorAll('.modecard').forEach(b => b.onclick = () => startRoom(b.dataset.start));
 
   let cdTimer = null;
   function showOverlay(){
@@ -469,15 +513,21 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
   function renderSaved(){
     const box = $('#savedLists'); box.innerHTML = '';
     const names = Object.keys(S.saved || {});
-    if (!names.length) { box.innerHTML = `<div class="empty"><b>ยังไม่มีเพลย์ลิสต์</b>ต่อคิวให้ครบ แล้วตั้งชื่อและกด “บันทึกคิวนี้”</div>`; return; }
-    names.sort().forEach(name => {
-      const d = document.createElement('div'); d.className = 'saved-item';
-      d.innerHTML = `<span class="nm">${esc(name)}</span><span class="ct">${S.saved[name].length} เพลง</span>
-        <button class="btn sm primary" data-load="${esc(name)}" data-mode="append">ต่อท้ายคิว</button>
-        <button class="btn sm" data-load="${esc(name)}" data-mode="replace">แทนคิว</button>
-        <button class="iconbtn del" data-delsaved="${esc(name)}" title="ลบ">✕</button>`;
-      box.appendChild(d);
-    });
+    if (!names.length) { box.innerHTML = `<div class="empty"><b>ยังไม่มีเพลย์ลิสต์</b>ต่อคิวให้ครบ เลือกประเภท ตั้งชื่อ แล้วกด “บันทึก”</div>`; return; }
+    for (const [kind, label] of [['karaoke', '🎤 คาราโอเกะ'], ['music', '🎵 เพลงฟัง']]) {
+      const group = names.filter(n => (S.saved[n].type || 'karaoke') === kind).sort();
+      if (!group.length) continue;
+      const head = document.createElement('div'); head.className = 'sec-title'; head.textContent = `${label} (${group.length})`;
+      box.appendChild(head);
+      group.forEach(name => {
+        const d = document.createElement('div'); d.className = 'saved-item';
+        d.innerHTML = `<span class="kind ${kind}">${kind === 'music' ? '🎵' : '🎤'}</span><span class="nm">${esc(name)}</span><span class="ct">${(S.saved[name].items || []).length} เพลง</span>
+          <button class="btn sm primary" data-load="${esc(name)}" data-mode="append">ต่อท้ายคิว</button>
+          <button class="btn sm" data-load="${esc(name)}" data-mode="replace">แทนคิว</button>
+          <button class="iconbtn del" data-delsaved="${esc(name)}" title="ลบ">✕</button>`;
+        box.appendChild(d);
+      });
+    }
   }
 
   // ---------- queue interactions ----------
@@ -536,7 +586,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     e.preventDefault();
     const raw = $('#q').value.trim(); if (!raw) return;
     if (isLink(raw)) { if (await add({ text:raw })) $('#q').value = ''; return; }
-    const q = prefs.addKaraoke && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
+    const q = !isMusic() && prefs.addKaraoke && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
     if (!S.hasKey) { window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank', 'noopener'); return; }
     const res = $('#results'); res.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
     const r = await fetch('/api/search?q=' + encodeURIComponent(q)); const j = await r.json().catch(() => ({}));
@@ -557,10 +607,13 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
   });
 
   // ---------- saved playlists ----------
-  $('#saveList').onclick = () => act('saveList', { name:$('#listName').value.trim() }).then(() => { $('#listName').value = ''; toast('บันทึกเพลย์ลิสต์แล้ว'); });
+  $('#saveList').onclick = () => {
+    const kind = saveKind || (isMusic() ? 'music' : 'karaoke');
+    act('saveList', { name:$('#listName').value.trim(), kind }).then(() => { $('#listName').value = ''; saveKind = null; applyMode(); toast(kind === 'music' ? 'บันทึกเพลย์ลิสต์เพลงฟังแล้ว' : 'บันทึกเพลย์ลิสต์คาราโอเกะแล้ว'); });
+  };
   $('#savedLists').addEventListener('click', e => {
     const l = e.target.closest('[data-load]'), d = e.target.closest('[data-delsaved]');
-    if (l) act('loadList', { name:l.dataset.load, mode:l.dataset.mode }).then(() => selectTab('queue'));
+    if (l) act('loadList', { name:l.dataset.load, mode:l.dataset.mode }).then(() => { selectTab('queue'); toast(isMusic() ? 'เปิดเพลย์ลิสต์แล้ว ห้องเป็นโหมดเพลงฟัง' : 'เปิดเพลย์ลิสต์แล้ว ห้องเป็นโหมดคาราโอเกะ'); });
     else if (d) armConfirm(d, 'ลบ?', () => act('delList', { name:d.dataset.delsaved }));
   });
   $('#exportBtn').onclick = () => {
@@ -587,7 +640,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     if (!S.now) return;
     if (tvOn()) { act('cmd', { cmd:'toggle' }); return; }
     if (!ready) return;
-    if (!started) { $('#startBtn').click(); return; }
+    if (!started) { startRoom(S.mode); return; }
     playing ? player.pauseVideo() : player.playVideo();
   };
   const restart = () => {
