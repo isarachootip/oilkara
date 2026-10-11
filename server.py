@@ -37,7 +37,10 @@ PAGES = {
     "/request": "request.html",
     "/r": "request.html",
     "/request.html": "request.html",
+    "/tv": "tv.html",
+    "/tv.html": "tv.html",
 }
+TV_TIMEOUT = 4  # seconds without a heartbeat before a TV screen counts as gone
 
 
 # ---------------------------------------------------------------- network helpers
@@ -136,7 +139,9 @@ def yt_search(q, key):
 
 
 # ---------------------------------------------------------------- state
-STATE = {"now": None, "queue": [], "history": [], "saved": {}, "apiKey": "", "ver": 1}
+STATE = {"now": None, "queue": [], "history": [], "saved": {}, "apiKey": "", "autoNext": True, "ver": 1}
+# live, not saved to disk: TV heartbeat, what the TV player is doing, remote commands for it
+RUNTIME = {"tvSeen": 0.0, "player": {}, "cmd": {"id": 0, "cmd": None}}
 
 
 def load_state():
@@ -162,9 +167,16 @@ def bump():
     save_state()
 
 
+def tv_online():
+    return time.time() - RUNTIME["tvSeen"] < TV_TIMEOUT
+
+
 def public_state():
+    online = tv_online()
     return {"now": STATE["now"], "queue": STATE["queue"], "history": STATE["history"][:50],
-            "saved": STATE["saved"], "hasKey": bool(STATE["apiKey"]), "ver": STATE["ver"]}
+            "saved": STATE["saved"], "hasKey": bool(STATE["apiKey"]), "autoNext": STATE.get("autoNext", True),
+            "ver": STATE["ver"], "tvOnline": online, "player": RUNTIME["player"] if online else {},
+            "cmd": RUNTIME["cmd"]}
 
 
 def make_item(vid, title, channel, singer, by):
@@ -290,6 +302,16 @@ def handle_action(body):
                 if STATE["now"] is None:
                     STATE["now"] = q.pop(0)
 
+        elif t == "cmd":
+            cmd = body.get("cmd")
+            if cmd not in ("toggle", "play", "pause", "restart"):
+                return {"error": "ไม่รู้จักคำสั่ง", "status": 400}
+            RUNTIME["cmd"] = {"id": RUNTIME["cmd"]["id"] + 1, "cmd": cmd}
+            return {"state": public_state()}  # live only, nothing to save
+
+        elif t == "setAutoNext":
+            STATE["autoNext"] = bool(body.get("value"))
+
         elif t == "shuffle":
             random.shuffle(q)
         elif t == "clear":
@@ -334,7 +356,8 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "YTKaraoke/1.0"
 
     def log_message(self, fmt, *args):
-        if "/api/state" not in (args[0] if args else ""):
+        line = str(args[0]) if args else ""
+        if "/api/state" not in line and "/api/tv" not in line:
             sys.stderr.write("  %s %s\n" % (self.address_string(), fmt % args))
 
     def send_json(self, obj, status=200):
@@ -399,6 +422,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/action":
             res = handle_action(body)
             self.send_json(res, res.pop("status", 200) if "error" in res else 200)
+        elif path == "/api/tv":
+            # heartbeat from a TV screen; only a started TV takes over playback
+            with LOCK:
+                if body.get("started"):
+                    RUNTIME["tvSeen"] = time.time()
+                    RUNTIME["player"] = {k: body.get(k) for k in ("uid", "playing", "cur", "dur")}
+                self.send_json(public_state())
         elif path == "/api/settings":
             if not body.get("host"):
                 return self.send_json({"error": "ตั้งค่าได้เฉพาะจอหลัก"}, 403)
@@ -428,6 +458,7 @@ def main():
     ip = lan_ip()
     print("\n  ห้องคาราโอเกะพร้อมแล้ว")
     print(f"  จอหลัก (เปิดบนคอม/ทีวี):  http://localhost:{port}/")
+    print(f"  จอทีวี:                  http://localhost:{port}/tv")
     print(f"  มือถือขอเพลง:            http://{ip}:{port}/request")
     print("  มือถือต้องต่อ Wi-Fi วงเดียวกับเครื่องนี้ · กด Ctrl+C เพื่อปิด\n")
     if "--no-browser" not in sys.argv:
