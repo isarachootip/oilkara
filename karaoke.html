@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oilkara</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap">
+<style>
+/* Layout: two-column "stage + songbook" — big player on the left, queue/search panel on the right; stacks on phones */
+:root{
+  --stage:#17121f; --panel:#211a2c; --line:#3a2f4a; --ink:#f3ecf8; --muted:#a99bb8;
+  --lyric:#ffb43d; --lyric-ink:#2a1a00; --cue:#7fd6c2; --danger:#ff7a8a;
+  --f-display:"Mitr","Sarabun",system-ui,sans-serif;
+  --f-body:"Sarabun",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--stage);color:var(--ink);font:15px/1.55 var(--f-body)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--lyric);outline-offset:2px}
+.wrap{max-width:1400px;margin:0 auto;padding:16px;padding-block:16px 32px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.brand{font:600 1.5rem/1.1 var(--f-display);display:flex;align-items:baseline;gap:10px}
+.brand small{font:400 .85rem var(--f-body);color:var(--muted)}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--lyric);box-shadow:0 0 12px var(--lyric);display:inline-block;align-self:center}
+.brand .dot.off{background:var(--danger);box-shadow:0 0 12px var(--danger)}
+.banner{background:#3a2410;border:1px solid #6b4416;color:#ffd9a1;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.92rem}
+.banner code{background:#00000040;padding:1px 6px;border-radius:4px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+.screen{position:relative;aspect-ratio:16/9;max-width:100%;background:#000;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+#player,.screen iframe{position:absolute;inset:0;width:100%;height:100%}
+.idle,.overlay,.start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:28px;text-align:center;padding:24px;flex-wrap:wrap}
+.idle{background:radial-gradient(ellipse at 50% 120%,#3b2453 0%,#120d18 65%)}
+.idle h2,.start h2{font:500 clamp(1.2rem,2.6vw,1.8rem) var(--f-display);margin:0 0 6px}
+.idle p,.start p{margin:0;color:var(--muted);max-width:34ch}
+.idle .txt{text-align:left;max-width:36ch}
+.qrbox{background:#fff;padding:10px;border-radius:12px;line-height:0;display:inline-block}
+.qrbox img,.qrbox canvas{display:block;width:100%;height:auto}
+.idle .qrbox{width:min(30vw,190px)}
+.url{font:500 .95rem var(--f-display);color:var(--lyric);overflow-wrap:anywhere;margin-top:8px}
+.overlay{background:#0d0912ee;flex-direction:column;gap:10px}
+.overlay .lbl{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cue)}
+.overlay .t{font:500 clamp(1.2rem,3vw,2rem)/1.25 var(--f-display);max-width:28ch;text-wrap:balance}
+.overlay .who{color:var(--lyric);font:500 1.1rem var(--f-display)}
+.overlay .count{font:600 3rem var(--f-display);font-variant-numeric:tabular-nums;color:var(--lyric)}
+.overlay .row{display:flex;gap:10px}
+.start{background:#120d18f2;flex-direction:column;gap:14px;z-index:5}
+.cornerqr{position:absolute;right:12px;bottom:12px;width:86px;padding:6px;opacity:.92;pointer-events:none}
+
+.nowbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px}
+.nowtext{flex:1 1 260px;min-width:0}
+.lbl{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.nowtitle{font:500 1.2rem/1.3 var(--f-display);margin:2px 0 0;overflow-wrap:anywhere}
+.nowtitle em{font-style:normal;color:var(--lyric)}
+.wipe{height:4px;border-radius:2px;background:var(--line);margin-top:8px;overflow:hidden}
+.wipe i{display:block;height:100%;width:0;background:var(--lyric);transition:width .4s linear}
+.times{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:3px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 14px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--lyric);color:var(--lyric-ink);border-color:var(--lyric);font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:4px 10px;font-size:.85rem;border-radius:8px}
+.btn.big{padding:12px 26px;font-size:1.1rem}
+.btn.icon{padding:8px 11px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.toggle{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:.9rem;cursor:pointer}
+.toggle input{accent-color:var(--lyric);width:16px;height:16px}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+@media (max-width:980px){.panel{max-height:none}}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;background:none;border:0;padding:12px 4px;color:var(--muted);font:500 .92rem var(--f-display);border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--lyric)}
+.badge{display:inline-block;min-width:20px;padding:0 6px;border-radius:10px;background:var(--line);font:500 .75rem var(--f-body);margin-left:4px;font-variant-numeric:tabular-nums}
+.pane{padding:14px;overflow:auto;display:flex;flex-direction:column;gap:12px;min-height:0}
+.field{display:flex;gap:8px;flex-wrap:wrap}
+.field input,textarea{flex:1;min-width:0;background:var(--stage);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+textarea{resize:vertical;min-height:70px;width:100%}
+.hint{font-size:.82rem;color:var(--muted);margin:0}
+.sec-title{font:500 .78rem var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:4px 0 0;display:flex;justify-content:space-between;align-items:center;gap:6px}
+
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.song{display:grid;grid-template-columns:auto 96px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px;border-radius:10px;border:1px solid transparent;background:#ffffff05}
+.song:hover{border-color:var(--line)}
+.song.drag-over{border-color:var(--lyric);background:#ffb43d14}
+.song.dragging{opacity:.4}
+.song .num{font:500 .95rem var(--f-display);color:var(--muted);width:22px;text-align:center;font-variant-numeric:tabular-nums;cursor:grab}
+.song.first .num{color:var(--cue)}
+.song img{width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;display:block;background:#000}
+.song .meta{min-width:0}
+.song .title{font-weight:500;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.song .sub{font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:.7rem;padding:0 6px;border-radius:999px;background:#7fd6c222;color:var(--cue);margin-left:4px;vertical-align:1px}
+.singer{display:inline-block;margin-top:3px;font-size:.78rem;padding:1px 8px;border-radius:999px;border:1px dashed var(--line);color:var(--lyric);cursor:text;min-width:60px}
+.singer:empty::before{content:"+ ผู้ร้อง";color:var(--muted)}
+.song .acts{display:flex;flex-direction:column;gap:4px}
+.song .acts .row{display:flex;gap:4px}
+.iconbtn{background:none;border:1px solid var(--line);border-radius:7px;padding:2px 7px;font-size:.85rem;color:var(--muted);line-height:1.4}
+.iconbtn:hover{color:var(--ink);border-color:var(--muted)}
+.iconbtn.del:hover{color:var(--danger);border-color:var(--danger)}
+.results .song{grid-template-columns:120px minmax(0,1fr)}
+.results .song img{width:120px}
+.results .acts{flex-direction:row;margin-top:6px;gap:6px}
+.empty{color:var(--muted);text-align:center;padding:28px 10px;border:1px dashed var(--line);border-radius:12px}
+.empty b{display:block;color:var(--ink);font:500 1rem var(--f-display);margin-bottom:4px}
+.saved-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;flex-wrap:wrap}
+.saved-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.saved-item .ct{font-size:.8rem;color:var(--muted)}
+details{border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+summary{cursor:pointer;color:var(--muted)}
+details[open] summary{margin-bottom:8px}
+.phonecard{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:8px 0}
+.phonecard .qrbox{width:220px;max-width:100%}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--stage);padding:10px 16px;border-radius:10px;font-weight:500;box-shadow:0 8px 30px #0008;z-index:50;max-width:calc(100% - 32px)}
+kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--muted)}
+.keys{font-size:.8rem;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+@media (prefers-reduced-motion:reduce){.wipe i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="dot" id="dot" title="สถานะการเชื่อมต่อ"></span>Oilkara <small>ห้องคาราโอเกะ YouTube · มือถือสแกน QR ขอเพลงได้</small></div>
+    <label class="toggle"><input type="checkbox" id="autoNext" checked> เล่นเพลงถัดไปอัตโนมัติ</label>
+  </header>
+
+  <div class="banner" id="fileBanner" hidden>
+    หน้านี้ต้องเปิดผ่านเซิร์ฟเวอร์ของ Oilkara: ดับเบิลคลิก <code>start-windows.bat</code> หรือรัน <code>python server.py</code> ในโฟลเดอร์นี้ แล้วเปิด <code>http://localhost:8000/</code>
+  </div>
+  <div class="banner" id="offBanner" hidden>เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจว่าหน้าต่าง server.py ยังเปิดอยู่</div>
+
+  <div class="grid">
+    <section>
+      <div class="screen" id="screen">
+        <div id="player"></div>
+        <div class="idle" id="idle">
+          <div class="qrbox" data-qr></div>
+          <div class="txt">
+            <h2>สแกนเพื่อขอเพลง</h2>
+            <p>ใช้กล้องมือถือสแกน QR (ต่อ Wi-Fi วงเดียวกัน) หรือค้นหาเพลงที่แผงด้านขวา เพลงแรกจะเริ่มเล่นทันที</p>
+            <div class="url" data-url></div>
+          </div>
+        </div>
+        <div class="overlay" id="overlay" hidden>
+          <div class="lbl">เพลงถัดไป</div>
+          <div class="t" id="ovTitle"></div>
+          <div class="who" id="ovWho"></div>
+          <div class="count" id="ovCount">5</div>
+          <div class="row">
+            <button class="btn primary" id="ovGo">ร้องเลย</button>
+            <button class="btn" id="ovStop">พักก่อน</button>
+          </div>
+          <div class="qrbox cornerqr" data-qr></div>
+        </div>
+        <div class="start" id="start">
+          <h2>เปิดห้องคาราโอเกะ</h2>
+          <p>กดหนึ่งครั้งเพื่อให้เบราว์เซอร์ยอมเล่นเสียงอัตโนมัติ เพลงที่มือถือขอเข้ามาจะเล่นต่อกันเอง</p>
+          <button class="btn primary big" id="startBtn">▶ เริ่มเลย</button>
+        </div>
+      </div>
+
+      <div class="nowbar">
+        <div class="nowtext">
+          <div class="lbl">กำลังร้อง</div>
+          <div class="nowtitle" id="nowTitle">—</div>
+          <div class="wipe"><i id="wipe"></i></div>
+          <div class="times" id="times">0:00 / 0:00</div>
+        </div>
+        <div class="controls">
+          <button class="btn icon" id="btnPrev" title="เพลงก่อนหน้า (P)">⏮</button>
+          <button class="btn icon" id="btnRestart" title="เริ่มเพลงใหม่ (R)">↺</button>
+          <button class="btn primary" id="btnPlay" title="เล่น/หยุด (Space)">▶ เล่น</button>
+          <button class="btn" id="btnNext" title="ข้ามไปเพลงถัดไป (N)">ข้ามเพลง ⏭</button>
+          <button class="btn icon" id="btnFull" title="เต็มจอ (F)">⛶</button>
+        </div>
+      </div>
+      <div class="keys"><span><kbd>Space</kbd> เล่น/หยุด</span><span><kbd>N</kbd> ข้ามเพลง</span><span><kbd>P</kbd> ย้อนเพลง</span><span><kbd>R</kbd> เริ่มใหม่</span><span><kbd>F</kbd> เต็มจอ</span></div>
+    </section>
+
+    <aside class="panel">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="queue">คิว <span class="badge" id="qCount">0</span></button>
+        <button role="tab" aria-selected="false" data-tab="search">ค้นหา</button>
+        <button role="tab" aria-selected="false" data-tab="phone">มือถือ</button>
+        <button role="tab" aria-selected="false" data-tab="lists">เพลย์ลิสต์</button>
+      </div>
+
+      <div class="pane" id="tab-queue">
+        <div class="field">
+          <input id="quickLink" placeholder="วางลิงก์ YouTube แล้วกด Enter">
+          <button class="btn primary" id="quickAdd">เพิ่ม</button>
+        </div>
+        <div class="sec-title">ลำดับถัดไป <span><button class="btn ghost sm" id="shuffle">สุ่มลำดับ</button> <button class="btn ghost sm" id="clearQ">ล้างคิว</button></span></div>
+        <ul class="list" id="queueList"></ul>
+        <div class="sec-title">ร้องไปแล้ว <button class="btn ghost sm" id="clearH">ล้าง</button></div>
+        <ul class="list" id="histList"></ul>
+      </div>
+
+      <div class="pane" id="tab-search" hidden>
+        <div class="field"><input id="singerName" placeholder="ชื่อผู้ร้อง (ใส่หรือไม่ก็ได้)"></div>
+        <form class="field" id="searchForm">
+          <input id="q" placeholder="ชื่อเพลง หรือ ศิลปิน" autocomplete="off">
+          <button class="btn primary" type="submit">ค้นหา</button>
+        </form>
+        <label class="toggle"><input type="checkbox" id="addKaraoke" checked> เติมคำว่า “คาราโอเกะ” ในการค้นหา</label>
+        <p class="hint" id="searchHint"></p>
+        <ul class="list results" id="results"></ul>
+        <div class="sec-title">วางหลายลิงก์พร้อมกัน</div>
+        <textarea id="bulk" placeholder="วางลิงก์ YouTube ทีละบรรทัด หรือลิงก์เพลย์ลิสต์ (list=...)"></textarea>
+        <button class="btn" id="bulkAdd">เพิ่มทั้งหมดเข้าคิว</button>
+        <details>
+          <summary>ตั้งค่า YouTube API key (ให้ค้นหาได้ทั้งจอนี้และมือถือ)</summary>
+          <div class="field"><input id="apiKey" type="password" placeholder="AIza..." autocomplete="off"><button class="btn" id="saveKey">บันทึก</button></div>
+          <p class="hint" id="keyState"></p>
+          <p class="hint">สร้างคีย์ฟรีที่ Google Cloud Console → เปิดใช้ “YouTube Data API v3” → Credentials → API key คีย์เก็บไว้ในเครื่องที่รันเซิร์ฟเวอร์เท่านั้น มือถือไม่เห็นคีย์</p>
+        </details>
+      </div>
+
+      <div class="pane" id="tab-phone" hidden>
+        <div class="phonecard">
+          <div class="qrbox" data-qr></div>
+          <div class="url" data-url></div>
+          <button class="btn sm" id="copyUrl">คัดลอกลิงก์</button>
+          <p class="hint">มือถือต้องต่อ Wi-Fi วงเดียวกับคอมเครื่องนี้ ถ้าสแกนแล้วเปิดไม่ได้ ให้อนุญาต Python ใน Windows Firewall (เลือก Private network)</p>
+        </div>
+      </div>
+
+      <div class="pane" id="tab-lists" hidden>
+        <div class="field">
+          <input id="listName" placeholder="ตั้งชื่อเพลย์ลิสต์ เช่น ปาร์ตี้วันเสาร์">
+          <button class="btn primary" id="saveList">บันทึกคิวนี้</button>
+        </div>
+        <p class="hint">บันทึกเพลงที่กำลังร้องและคิวทั้งหมด เก็บไว้ในไฟล์ karaoke_data.json ข้างเซิร์ฟเวอร์</p>
+        <div id="savedLists" class="list"></div>
+        <div class="sec-title">ย้ายไปเครื่องอื่น</div>
+        <div class="field">
+          <button class="btn" id="exportBtn">ส่งออกเป็นไฟล์ (.json)</button>
+          <label class="btn">นำเข้าไฟล์<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const LS = 'oilkara.host';
+  const COUNTDOWN = 5;
+  let S = { now:null, queue:[], history:[], saved:{}, hasKey:false, ver:-1 };
+  let prefs = { autoNext:true, addKaraoke:true, singer:'' };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem(LS) || '{}')); } catch(e){}
+  const savePrefs = () => { try { localStorage.setItem(LS, JSON.stringify(prefs)); } catch(e){} };
+
+  const thumb = id => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = t => { t = Math.max(0, Math.floor(t||0)); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; };
+  const isLink = t => /(?:youtu\.be\/|youtube\.com\/|^[\w-]{11}$)/.test((t||'').trim());
+  function toast(msg){ const el = $('#toast'); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 2800); }
+
+  if (location.protocol === 'file:') { $('#fileBanner').hidden = false; }
+
+  // ---------- server ----------
+  async function api(path, body){
+    const r = await fetch(path, body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {});
+    const j = await r.json().catch(() => ({}));
+    if (j.state) applyState(j.state);
+    if (!r.ok) { toast(j.error || 'ทำรายการไม่สำเร็จ'); throw new Error(j.error); }
+    return j;
+  }
+  const act = (type, extra={}) => api('/api/action', { type, host:true, ...extra }).catch(() => {});
+  async function add(payload){
+    try {
+      const j = await api('/api/add', { client:'host', singer:prefs.singer, ...payload });
+      (j.errors||[]).forEach(toast);
+      if (j.added) toast(j.added === 1 ? 'เพิ่มเข้าคิวแล้ว' : `เพิ่ม ${j.added} เพลงเข้าคิวแล้ว`);
+      return j.added || 0;
+    } catch(e){ return 0; }
+  }
+
+  async function poll(){
+    try {
+      const s = await fetch('/api/state', { cache:'no-store' }).then(r => r.json());
+      setOnline(true);
+      if (s.ver !== S.ver) applyState(s);
+    } catch(e){ setOnline(false); }
+  }
+  function setOnline(on){ $('#dot').classList.toggle('off', !on); $('#offBanner').hidden = on || location.protocol === 'file:'; }
+  if (location.protocol !== 'file:') { poll(); setInterval(poll, 1500); }
+
+  function applyState(s){ S = s; render(); syncPlayer(); }
+
+  // ---------- QR ----------
+  fetch('/api/info').then(r => r.json()).then(info => {
+    document.querySelectorAll('[data-url]').forEach(el => el.textContent = info.requestUrl);
+    document.querySelectorAll('[data-qr]').forEach(el => {
+      if (window.QRCode) new QRCode(el, { text:info.requestUrl, width:256, height:256, correctLevel:QRCode.CorrectLevel.M });
+      else el.hidden = true;
+    });
+    $('#copyUrl').onclick = () => navigator.clipboard.writeText(info.requestUrl).then(() => toast('คัดลอกลิงก์แล้ว'), () => toast(info.requestUrl));
+  }).catch(() => {});
+
+  // ---------- player ----------
+  let player = null, ready = false, playing = false, started = false, loadedUid = null;
+  window.onYouTubeIframeAPIReady = () => {
+    const vars = { autoplay:1, rel:0, playsinline:1, modestbranding:1, iv_load_policy:3 };
+    if (location.protocol.startsWith('http')) vars.origin = location.origin;
+    player = new YT.Player('player', {
+      width:'100%', height:'100%', playerVars:vars,
+      events:{
+        onReady:() => { ready = true; syncPlayer(); },
+        onStateChange:onState,
+        onError:e => {
+          const why = (e.data === 101 || e.data === 150) ? 'เจ้าของวิดีโอไม่อนุญาตให้เล่นนอก YouTube' : 'เล่นวิดีโอนี้ไม่ได้';
+          toast(`${why} ข้ามไปเพลงถัดไป`);
+          const uid = S.now?.uid; setTimeout(() => act('next', { expect:uid }), 1800);
+        }
+      }
+    });
+  };
+  function syncPlayer(){
+    $('#idle').hidden = !!S.now;
+    if (!ready) return;
+    const uid = S.now?.uid || null;
+    if (uid === loadedUid) return;
+    loadedUid = uid; hideOverlay();
+    if (!uid) { try { player.stopVideo(); } catch(e){} return; }
+    started ? player.loadVideoById(S.now.id) : player.cueVideoById(S.now.id);
+  }
+  function onState(e){
+    playing = e.data === YT.PlayerState.PLAYING;
+    $('#btnPlay').textContent = playing ? '❚❚ หยุด' : '▶ เล่น';
+    if (e.data === YT.PlayerState.ENDED && S.now) {
+      if (S.queue.length && prefs.autoNext) showOverlay();
+      else if (!S.queue.length) { act('next', { expect:S.now.uid }); toast('จบคิวแล้ว สแกน QR หรือค้นหาเพื่อร้องต่อ'); }
+    }
+  }
+  setInterval(() => {
+    if (!ready || !S.now) { $('#wipe').style.width = '0'; $('#times').textContent = '0:00 / 0:00'; return; }
+    try { const c = player.getCurrentTime(), d = player.getDuration();
+      $('#wipe').style.width = d ? (c/d*100).toFixed(2) + '%' : '0';
+      $('#times').textContent = `${fmt(c)} / ${fmt(d)}`; } catch(e){}
+  }, 500);
+
+  $('#startBtn').onclick = () => {
+    started = true; $('#start').hidden = true;
+    if (ready && S.now) player.loadVideoById(S.now.id);
+  };
+
+  let cdTimer = null;
+  function showOverlay(){
+    const n = S.queue[0], expect = S.now.uid;
+    $('#ovTitle').textContent = n.title;
+    $('#ovWho').textContent = n.singer ? `ผู้ร้อง: ${n.singer}` : '';
+    let left = COUNTDOWN; $('#ovCount').textContent = left; $('#overlay').hidden = false;
+    clearInterval(cdTimer);
+    cdTimer = setInterval(() => { left--; $('#ovCount').textContent = Math.max(left,0); if (left <= 0) { clearInterval(cdTimer); act('next', { expect }); } }, 1000);
+  }
+  function hideOverlay(){ clearInterval(cdTimer); $('#overlay').hidden = true; }
+  $('#ovGo').onclick = () => act('next', { expect:S.now?.uid });
+  $('#ovStop').onclick = () => { hideOverlay(); toast('พักไว้ก่อน กด “ข้ามเพลง” เมื่อพร้อม'); };
+
+  // ---------- rendering ----------
+  let busyList = false, dragUid = null;
+  function songRow(item, i, kind){
+    const li = document.createElement('li');
+    li.className = 'song' + (kind === 'queue' && i === 0 ? ' first' : '');
+    li.dataset.uid = item.uid; li.dataset.i = i;
+    const phone = item.by && item.by !== 'host' ? '<span class="tag">มือถือ</span>' : '';
+    const num = kind === 'queue' ? `<span class="num" title="ลากเพื่อจัดลำดับ">${i+1}</span>` : `<span class="num">·</span>`;
+    const acts = kind === 'queue'
+      ? `<div class="acts"><button class="iconbtn" data-act="play" title="ร้องเพลงนี้เลย">▶</button>
+           <div class="row"><button class="iconbtn" data-act="up" title="เลื่อนขึ้น">↑</button><button class="iconbtn" data-act="down" title="เลื่อนลง">↓</button></div>
+           <button class="iconbtn del" data-act="del" title="ลบออกจากคิว">✕</button></div>`
+      : `<div class="acts"><button class="iconbtn" data-act="again" title="ใส่กลับเข้าคิว">＋</button></div>`;
+    const singer = kind === 'queue'
+      ? `<span class="singer" contenteditable="plaintext-only" spellcheck="false" data-act="singer">${esc(item.singer)}</span>`
+      : (item.singer ? `<span class="sub" style="color:var(--lyric)">${esc(item.singer)}</span>` : '');
+    li.innerHTML = `${num}<img src="${thumb(item.id)}" alt="" loading="lazy">
+      <div class="meta"><div class="title">${esc(item.title)}</div><div class="sub">${esc(item.channel)}${phone}</div>${singer}</div>${acts}`;
+    if (kind === 'queue') li.draggable = true;
+    return li;
+  }
+  function render(){
+    $('#nowTitle').innerHTML = S.now ? esc(S.now.title) + (S.now.singer ? ` <em>— ${esc(S.now.singer)}</em>` : '') : '—';
+    $('#qCount').textContent = S.queue.length;
+    $('#btnPrev').disabled = !S.history.length;
+    $('#btnNext').disabled = !S.now;
+    $('#keyState').textContent = S.hasKey ? 'ตั้งค่าคีย์แล้ว ค้นหาในหน้านี้และบนมือถือได้' : 'ยังไม่ได้ตั้งคีย์';
+    updateHint();
+    if (!busyList) renderQueue();
+    const hl = $('#histList'); hl.innerHTML = '';
+    if (!S.history.length) hl.innerHTML = `<li class="hint" style="padding:4px 2px">ยังไม่มี</li>`;
+    S.history.slice(0, 30).forEach((it, i) => hl.appendChild(songRow(it, i, 'hist')));
+    renderSaved();
+    document.title = S.now ? `♪ ${S.now.title} · Oilkara` : 'Oilkara';
+  }
+  function renderQueue(){
+    const ql = $('#queueList'); ql.innerHTML = '';
+    if (!S.queue.length) ql.innerHTML = `<li class="empty"><b>คิวว่าง</b>ให้เพื่อนสแกน QR ในแท็บ “มือถือ” หรือค้นหาเพลงเอง</li>`;
+    S.queue.forEach((it, i) => ql.appendChild(songRow(it, i, 'queue')));
+  }
+  function renderSaved(){
+    const box = $('#savedLists'); box.innerHTML = '';
+    const names = Object.keys(S.saved || {});
+    if (!names.length) { box.innerHTML = `<div class="empty"><b>ยังไม่มีเพลย์ลิสต์</b>ต่อคิวให้ครบ แล้วตั้งชื่อและกด “บันทึกคิวนี้”</div>`; return; }
+    names.sort().forEach(name => {
+      const d = document.createElement('div'); d.className = 'saved-item';
+      d.innerHTML = `<span class="nm">${esc(name)}</span><span class="ct">${S.saved[name].length} เพลง</span>
+        <button class="btn sm primary" data-load="${esc(name)}" data-mode="append">ต่อท้ายคิว</button>
+        <button class="btn sm" data-load="${esc(name)}" data-mode="replace">แทนคิว</button>
+        <button class="iconbtn del" data-delsaved="${esc(name)}" title="ลบ">✕</button>`;
+      box.appendChild(d);
+    });
+  }
+
+  // ---------- queue interactions ----------
+  const ql = $('#queueList');
+  ql.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b || b.dataset.act === 'singer') return;
+    const li = b.closest('.song'), uid = li.dataset.uid, i = +li.dataset.i;
+    ({ play:() => act('playAt', { uid }), up:() => i > 0 && act('move', { uid, to:i-1 }),
+       down:() => act('move', { uid, to:i+1 }), del:() => act('remove', { uid }) })[b.dataset.act]?.();
+  });
+  ql.addEventListener('focusin', e => { if (e.target.dataset.act === 'singer') busyList = true; });
+  ql.addEventListener('focusout', e => {
+    if (e.target.dataset.act !== 'singer') return;
+    busyList = false;
+    act('setSinger', { uid:e.target.closest('.song').dataset.uid, singer:e.target.textContent.trim() });
+  });
+  ql.addEventListener('keydown', e => { if (e.target.dataset.act === 'singer' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+  ql.addEventListener('dragstart', e => { const li = e.target.closest('.song'); if (!li) return; busyList = true; dragUid = li.dataset.uid; li.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+  ql.addEventListener('dragend', () => { busyList = false; dragUid = null; renderQueue(); });
+  ql.addEventListener('dragover', e => { const li = e.target.closest('.song'); if (!li || !dragUid) return; e.preventDefault(); ql.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over')); li.classList.add('drag-over'); });
+  ql.addEventListener('drop', e => { const li = e.target.closest('.song'); if (!li || !dragUid) return; e.preventDefault(); act('move', { uid:dragUid, to:+li.dataset.i }); });
+
+  $('#histList').addEventListener('click', e => { const b = e.target.closest('[data-act="again"]'); if (b) act('again', { uid:b.closest('.song').dataset.uid }); });
+  $('#shuffle').onclick = () => act('shuffle');
+  $('#clearQ').onclick = function(){ armConfirm(this, 'ยืนยันล้างคิว?', () => act('clear')); };
+  $('#clearH').onclick = () => act('clearHistory');
+  function armConfirm(btn, label, fn){
+    if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.orig; fn(); return; }
+    btn.dataset.orig = btn.textContent; btn.dataset.armed = '1'; btn.textContent = label;
+    setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.orig; } }, 3000);
+  }
+
+  // ---------- adding ----------
+  const quickAdd = async () => { const v = $('#quickLink').value.trim(); if (v && await add({ text:v })) $('#quickLink').value = ''; };
+  $('#quickAdd').onclick = quickAdd;
+  $('#quickLink').addEventListener('keydown', e => { if (e.key === 'Enter') quickAdd(); });
+  $('#bulkAdd').onclick = async () => { if (await add({ text:$('#bulk').value })) $('#bulk').value = ''; };
+  document.addEventListener('paste', e => {
+    if (e.target.closest('input,textarea,[contenteditable]')) return;
+    const t = e.clipboardData.getData('text'); if (isLink(t)) { e.preventDefault(); add({ text:t }); }
+  });
+  $('#singerName').value = prefs.singer;
+  $('#singerName').addEventListener('input', e => { prefs.singer = e.target.value; savePrefs(); });
+
+  // ---------- search ----------
+  $('#addKaraoke').checked = prefs.addKaraoke;
+  $('#addKaraoke').onchange = e => { prefs.addKaraoke = e.target.checked; savePrefs(); };
+  $('#saveKey').onclick = () => api('/api/settings', { host:true, apiKey:$('#apiKey').value.trim() })
+      .then(() => { $('#apiKey').value = ''; toast(S.hasKey ? 'บันทึก API key แล้ว' : 'ลบ API key แล้ว'); }).catch(() => {});
+  function updateHint(){
+    $('#searchHint').textContent = S.hasKey ? 'กด “เพิ่มเข้าคิว” หรือ “ร้องถัดไป” จากผลค้นหา'
+      : 'ยังไม่ได้ตั้ง API key: ปุ่มค้นหาจะเปิด YouTube ในแท็บใหม่ เลือกเพลงแล้วคัดลอกลิงก์กลับมาวาง (Ctrl+V ที่ไหนก็ได้)';
+  }
+  let lastResults = [];
+  $('#searchForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const raw = $('#q').value.trim(); if (!raw) return;
+    if (isLink(raw)) { if (await add({ text:raw })) $('#q').value = ''; return; }
+    const q = prefs.addKaraoke && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
+    if (!S.hasKey) { window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank', 'noopener'); return; }
+    const res = $('#results'); res.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
+    const r = await fetch('/api/search?q=' + encodeURIComponent(q)); const j = await r.json().catch(() => ({}));
+    if (!r.ok) { res.innerHTML = `<li class="empty"><b>ค้นหาไม่สำเร็จ</b>${esc(j.error || '')}</li>`; return; }
+    lastResults = j.results || []; res.innerHTML = '';
+    if (!lastResults.length) { res.innerHTML = `<li class="empty"><b>ไม่พบเพลง</b>ลองใช้คำค้นอื่น</li>`; return; }
+    lastResults.forEach((it, i) => {
+      const li = document.createElement('li'); li.className = 'song';
+      li.innerHTML = `<img src="${thumb(it.id)}" alt="" loading="lazy"><div class="meta"><div class="title">${esc(it.title)}</div><div class="sub">${esc(it.channel)}</div>
+        <div class="acts"><button class="btn sm primary" data-add="${i}">เพิ่มเข้าคิว</button><button class="btn sm" data-next="${i}">ร้องถัดไป</button></div></div>`;
+      res.appendChild(li);
+    });
+  });
+  $('#results').addEventListener('click', e => {
+    const a = e.target.closest('[data-add],[data-next]'); if (!a) return;
+    const it = lastResults[+(a.dataset.add ?? a.dataset.next)];
+    add({ items:[it], next:a.dataset.next !== undefined });
+  });
+
+  // ---------- saved playlists ----------
+  $('#saveList').onclick = () => act('saveList', { name:$('#listName').value.trim() }).then(() => { $('#listName').value = ''; toast('บันทึกเพลย์ลิสต์แล้ว'); });
+  $('#savedLists').addEventListener('click', e => {
+    const l = e.target.closest('[data-load]'), d = e.target.closest('[data-delsaved]');
+    if (l) act('loadList', { name:l.dataset.load, mode:l.dataset.mode }).then(() => selectTab('queue'));
+    else if (d) armConfirm(d, 'ลบ?', () => act('delList', { name:d.dataset.delsaved }));
+  });
+  $('#exportBtn').onclick = () => {
+    const data = { app:'oilkara', version:1, saved:S.saved };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }));
+    a.download = 'oilkara-playlists.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  $('#importFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { const j = JSON.parse(await f.text()); await act('importSaved', { saved:j.saved || {} }); toast('นำเข้าเพลย์ลิสต์แล้ว'); }
+    catch(err){ toast('ไฟล์นี้ไม่ใช่ไฟล์เพลย์ลิสต์ของ Oilkara'); }
+    e.target.value = '';
+  };
+
+  // ---------- tabs & controls ----------
+  function selectTab(name){
+    document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name));
+    document.querySelectorAll('.pane').forEach(p => p.hidden = p.id !== `tab-${name}`);
+    if (name === 'search') setTimeout(() => $('#q').focus(), 0);
+  }
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.onclick = () => selectTab(b.dataset.tab));
+  const togglePlay = () => { if (!ready || !S.now) return; if (!started) { $('#startBtn').click(); return; } playing ? player.pauseVideo() : player.playVideo(); };
+  const restart = () => { if (ready && S.now) { player.seekTo(0, true); player.playVideo(); } };
+  const fullscreen = () => { const el = $('#screen'); try { (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen())?.catch?.(() => {}); } catch(e){} };
+  $('#btnPlay').onclick = togglePlay;
+  $('#btnNext').onclick = () => act('next', { expect:S.now?.uid });
+  $('#btnPrev').onclick = () => act('prev');
+  $('#btnRestart').onclick = restart;
+  $('#btnFull').onclick = fullscreen;
+  $('#autoNext').checked = prefs.autoNext;
+  $('#autoNext').onchange = e => { prefs.autoNext = e.target.checked; savePrefs(); };
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input,textarea,[contenteditable]')) return;
+    const k = e.key.toLowerCase();
+    if (k === ' ') { e.preventDefault(); togglePlay(); }
+    else if (k === 'n') $('#btnNext').click();
+    else if (k === 'p') $('#btnPrev').click();
+    else if (k === 'r') restart();
+    else if (k === 'f') fullscreen();
+  });
+  render();
+})();
+</script>
+</body>
+</html>
