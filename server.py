@@ -139,7 +139,7 @@ def yt_search(q, key):
 
 
 # ---------------------------------------------------------------- state
-STATE = {"now": None, "queue": [], "history": [], "saved": {}, "apiKey": "", "autoNext": True, "ver": 1}
+STATE = {"now": None, "queue": [], "history": [], "saved": {}, "apiKey": "", "autoNext": True, "partyName": "", "ver": 1}
 # live, not saved to disk: TV heartbeat, what the TV player is doing, remote commands for it
 RUNTIME = {"tvSeen": 0.0, "player": {}, "cmd": {"id": 0, "cmd": None}}
 
@@ -175,6 +175,7 @@ def public_state():
     online = tv_online()
     return {"now": STATE["now"], "queue": STATE["queue"], "history": STATE["history"][:50],
             "saved": STATE["saved"], "hasKey": bool(STATE["apiKey"]), "autoNext": STATE.get("autoNext", True),
+            "partyName": STATE.get("partyName", ""),
             "ver": STATE["ver"], "tvOnline": online, "player": RUNTIME["player"] if online else {},
             "cmd": RUNTIME["cmd"]}
 
@@ -308,6 +309,9 @@ def handle_action(body):
                 return {"error": "ไม่รู้จักคำสั่ง", "status": 400}
             RUNTIME["cmd"] = {"id": RUNTIME["cmd"]["id"] + 1, "cmd": cmd}
             return {"state": public_state()}  # live only, nothing to save
+
+        elif t == "setPartyName":
+            STATE["partyName"] = str(body.get("name", "")).strip()[:60]
 
         elif t == "setAutoNext":
             STATE["autoNext"] = bool(body.get("value"))

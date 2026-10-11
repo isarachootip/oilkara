@@ -31,6 +31,8 @@ body.hide-cursor{cursor:none}
 .idle .txt{text-align:left;max-width:44vw}
 .idle h1{font:600 7vh/1.05 var(--f-display);margin:0 0 2vh;text-wrap:balance}
 .idle p{font-size:2.6vh;color:var(--muted);margin:0;max-width:36ch}
+.party{font:600 4.2vh/1.15 var(--f-display);color:var(--lyric);margin:0 0 1.4vh;text-wrap:balance}
+.ovparty{font:500 2.4vh var(--f-display);color:var(--lyric);margin-bottom:1vh}
 .brandmark{position:fixed;left:3vw;top:3vh;font:600 2.6vh var(--f-display);display:flex;align-items:center;gap:1vh}
 .brandmark i{width:1.4vh;height:1.4vh;border-radius:50%;background:var(--lyric);box-shadow:0 0 1.6vh var(--lyric)}
 
@@ -68,9 +70,10 @@ body.hide-cursor{cursor:none}
 <div id="player"></div>
 
 <div class="layer idle" id="idle">
-  <div class="brandmark"><i></i>Oilkara</div>
+  <div class="brandmark"><i></i><span data-party>Oilkara</span></div>
   <div class="qrbox" data-qr></div>
   <div class="txt">
+    <div class="party" data-party-big hidden></div>
     <h1>สแกนเพื่อขอเพลง</h1>
     <p>เปิดกล้องมือถือแล้วสแกน QR ใส่ชื่อ เลือกเพลง เพลงแรกจะขึ้นจอนี้ทันที</p>
     <div class="url" data-url></div>
@@ -86,6 +89,7 @@ body.hide-cursor{cursor:none}
 </div>
 
 <div class="layer overlay" id="overlay" hidden>
+  <div class="ovparty" data-party-big hidden></div>
   <div class="lbl">เพลงถัดไป</div>
   <div class="t" id="ovT"></div>
   <div class="who" id="ovWho"></div>
@@ -134,12 +138,19 @@ body.hide-cursor{cursor:none}
       const s = await r.json();
       if (lastCmd === null) lastCmd = s.cmd?.id ?? 0;      // ignore commands sent before this screen opened
       if (s.cmd && s.cmd.id > lastCmd) { lastCmd = s.cmd.id; runCmd(s.cmd.cmd); }
-      if (s.ver !== S.ver) { S = s; sync(); }
+      if (s.ver !== S.ver) { S = s; sync(); showParty(); }
       else S.autoNext = s.autoNext;
     } catch(e){}
     $('#wipe').style.width = dur ? (cur/dur*100).toFixed(2) + '%' : '0';
   }
   beat(); setInterval(beat, 1000);
+
+  function showParty(){
+    const name = (S.partyName || '').trim();
+    document.querySelectorAll('[data-party]').forEach(el => el.textContent = name || 'Oilkara');
+    document.querySelectorAll('[data-party-big]').forEach(el => { el.textContent = name; el.hidden = !name; });
+    document.title = name ? `${name} · Oilkara TV` : 'Oilkara TV';
+  }
 
   async function act(type, extra={}){
     try {

@@ -133,7 +133,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><span class="dot" id="dot" title="สถานะการเชื่อมต่อ"></span>Oilkara <small>ห้องคาราโอเกะ YouTube · มือถือสแกน QR ขอเพลงได้</small></div>
+    <div class="brand"><span class="dot" id="dot" title="สถานะการเชื่อมต่อ"></span><span id="brandName">Oilkara</span> <small>ห้องคาราโอเกะ YouTube · มือถือสแกน QR ขอเพลงได้</small></div>
     <div class="controls">
       <label class="toggle"><input type="checkbox" id="autoNext" checked> เล่นเพลงถัดไปอัตโนมัติ</label>
       <button class="btn sm" id="openTv" title="เปิดหน้าต่างสำหรับจอทีวี แล้วลากไปไว้บนทีวี">📺 เปิดจอทีวี</button>
@@ -238,6 +238,12 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
       </div>
 
       <div class="pane" id="tab-phone" hidden>
+        <div class="sec-title">ชื่องานที่แสดงบนจอ</div>
+        <form class="field" id="partyForm">
+          <input id="partyName" placeholder="เช่น ปาร์ตี้วันอาทิตย์" maxlength="60" autocomplete="off">
+          <button class="btn primary" type="submit">บันทึก</button>
+        </form>
+        <p class="hint">ขึ้นบนจอทีวี หน้าขอเพลงบนมือถือ และหัวหน้านี้ เว้นว่างเพื่อใช้ชื่อ Oilkara</p>
         <div class="phonecard">
           <div class="qrbox" data-qr></div>
           <div class="url" data-url></div>
@@ -312,12 +318,22 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
   // live fields change without a queue version bump: TV presence, its progress, autoNext
   function updateLive(s){
     const wasTv = S.tvOnline;
-    S.tvOnline = s.tvOnline; S.player = s.player; S.autoNext = s.autoNext;
+    S.tvOnline = s.tvOnline; S.player = s.player; S.autoNext = s.autoNext; S.partyName = s.partyName;
+    showParty();
     $('#autoNext').checked = s.autoNext !== false;
     if (wasTv !== s.tvOnline) { if (s.tvOnline) toast('จอทีวีเริ่มฉายแล้ว หน้านี้เป็นรีโมต'); syncPlayer(true); }
     if (s.tvOnline) $('#btnPlay').textContent = s.player?.playing ? '❚❚ หยุด' : '▶ เล่น';
   }
   const tvOn = () => !!S.tvOnline;
+  function showParty(){
+    const name = (S.partyName || '').trim();
+    $('#brandName').textContent = name || 'Oilkara';
+    const inp = $('#partyName'); if (document.activeElement !== inp) inp.value = name;
+  }
+  $('#partyForm').addEventListener('submit', e => {
+    e.preventDefault();
+    act('setPartyName', { name:$('#partyName').value.trim() }).then(() => { $('#partyName').blur(); toast('อัปเดตชื่องานบนทุกจอแล้ว'); });
+  });
   function setOnline(on){ $('#dot').classList.toggle('off', !on); $('#offBanner').hidden = on || location.protocol === 'file:'; }
   if (location.protocol !== 'file:') { poll(); setInterval(poll, 1500); }
 
@@ -442,7 +458,8 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     if (!S.history.length) hl.innerHTML = `<li class="hint" style="padding:4px 2px">ยังไม่มี</li>`;
     S.history.slice(0, 30).forEach((it, i) => hl.appendChild(songRow(it, i, 'hist')));
     renderSaved();
-    document.title = S.now ? `♪ ${S.now.title} · Oilkara` : 'Oilkara';
+    const nm = (S.partyName || '').trim() || 'Oilkara';
+    document.title = S.now ? `♪ ${S.now.title} · ${nm}` : nm;
   }
   function renderQueue(){
     const ql = $('#queueList'); ql.innerHTML = '';
