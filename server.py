@@ -124,9 +124,9 @@ def fetch_playlist(list_id, key, limit=200):
     return out, None
 
 
-def yt_search(q, key):
+def yt_search(q, key, max_results=15):
     params = urllib.parse.urlencode({"part": "snippet", "type": "video", "videoEmbeddable": "true",
-                                     "maxResults": 15, "q": q, "key": key})
+                                     "maxResults": max_results, "q": q, "key": key})
     j = http_json(f"https://www.googleapis.com/youtube/v3/search?{params}")
     if "error" in j:
         return None, j["error"].get("message", "ค้นหาไม่สำเร็จ")
@@ -205,6 +205,130 @@ def find(lst, uid):
 
 
 # ---------------------------------------------------------------- handlers
+KARAOKE_RE = re.compile(r"karaoke|คาราโอเกะ", re.I)
+MAX_NAME_SEARCHES = 50  # each name search costs 100 of the 10,000 daily YouTube API units
+
+
+def resolve_text(text, kind, singer, client):
+    """Turn pasted text into queue items. Each line is either YouTube links (videos or playlists)
+    or a song name, which is searched and its top result taken (karaoke suffix for karaoke lists)."""
+    items, errors, not_found = [], [], []
+    key = STATE["apiKey"]
+    searches = 0
+    for line in str(text or "").splitlines()[:200]:
+        line = line.strip()
+        if not line:
+            continue
+        toks = [t for t in re.split(r"[\s,]+", line) if t]
+        links = [t for t in toks if parse_id(t) or parse_list(t)]
+        if links:
+            for tok in links:
+                vid, lid = parse_id(tok), parse_list(tok)
+                if vid:
+                    title, ch = fetch_meta(vid)
+                    items.append(make_item(vid, title, ch, singer, client))
+                elif not key:
+                    errors.append("การเพิ่มทั้งเพลย์ลิสต์ต้องตั้ง YouTube API key ที่จอหลักก่อน")
+                else:
+                    found, err = fetch_playlist(lid, key)
+                    if err:
+                        errors.append(err)
+                    items += [make_item(v, t, c, singer, client) for v, t, c in found]
+            continue
+        # a song name
+        if not key:
+            errors.append("การค้นจากชื่อเพลงต้องตั้ง YouTube API key ที่จอหลักก่อน (หรือวางเป็นลิงก์แทน)")
+            not_found.append(line)
+            continue
+        if searches >= MAX_NAME_SEARCHES:
+            errors.append(f"ค้นได้ครั้งละไม่เกิน {MAX_NAME_SEARCHES} ชื่อ ที่เหลือวางใหม่อีกรอบ")
+            not_found.append(line)
+            continue
+        q = f"{line} คาราโอเกะ" if kind == "karaoke" and not KARAOKE_RE.search(line) else line
+        res, err = yt_search(q, key, max_results=1)
+        searches += 1
+        if err:
+            errors.append(err)
+            not_found.append(line)
+        elif res:
+            items.append(make_item(res[0]["id"], res[0]["title"], res[0]["channel"], singer, client))
+        else:
+            not_found.append(line)
+    return items, list(dict.fromkeys(errors)), not_found
+
+
+def list_entry(it):
+    return {"id": it["id"], "title": it.get("title", ""), "channel": it.get("channel", ""), "singer": it.get("singer", "")}
+
+
+def handle_list(body):
+    """Edit saved playlists directly, without touching the live queue."""
+    if not body.get("host"):
+        return {"error": "แก้ไขเพลย์ลิสต์ได้เฉพาะจอหลัก", "status": 403}
+    op = body.get("op")
+    name = str(body.get("name", "")).strip()[:60]
+    kind = body.get("kind") if body.get("kind") in MODES else None
+    saved = STATE["saved"]
+
+    if op == "add":
+        with LOCK:
+            if name not in saved:
+                return {"error": "ไม่พบเพลย์ลิสต์นี้", "status": 404}
+            list_kind = norm_list(saved[name])["type"]
+        items = [make_item(str(it.get("id")), it.get("title"), it.get("channel"), "", "host")
+                 for it in (body.get("items") or [])[:50] if ID_RE.match(str(it.get("id", "")))]
+        more, errors, not_found = resolve_text(body.get("text", ""), list_kind, "", "host")
+        items += more
+        with LOCK:
+            if name not in saved:
+                return {"error": "ไม่พบเพลย์ลิสต์นี้", "status": 404}
+            pl = norm_list(saved[name])
+            pl["items"].extend(list_entry(it) for it in items)
+            saved[name] = pl
+            if items:
+                bump()
+            return {"name": name, "added": len(items), "errors": errors, "notFound": not_found, "state": public_state()}
+
+    with LOCK:
+        if op == "create":
+            if not name:
+                return {"error": "ตั้งชื่อเพลย์ลิสต์ก่อน", "status": 400}
+            if name in saved:
+                return {"error": "มีเพลย์ลิสต์ชื่อนี้แล้ว ใช้ชื่ออื่น", "status": 400}
+            saved[name] = {"type": kind or STATE.get("mode", "karaoke"), "items": []}
+        else:
+            if name not in saved:
+                return {"error": "ไม่พบเพลย์ลิสต์นี้", "status": 404}
+            pl = norm_list(saved[name])
+            items = pl["items"]
+            if op == "rename":
+                new = str(body.get("newName", "")).strip()[:60]
+                if not new:
+                    return {"error": "ชื่อใหม่ว่างอยู่", "status": 400}
+                if new != name and new in saved:
+                    return {"error": "มีเพลย์ลิสต์ชื่อนี้แล้ว", "status": 400}
+                del saved[name]
+                name = new
+            elif op == "setType":
+                if not kind:
+                    return {"error": "ไม่รู้จักประเภท", "status": 400}
+                pl["type"] = kind
+            elif op == "remove":
+                i = int(body.get("index", -1))
+                if 0 <= i < len(items):
+                    items.pop(i)
+            elif op == "move":
+                i, to = int(body.get("index", -1)), int(body.get("to", -1))
+                if 0 <= i < len(items):
+                    to = max(0, min(to, len(items) - 1))
+                    items.insert(to, items.pop(i))
+            else:
+                return {"error": "ไม่รู้จักคำสั่ง", "status": 400}
+            saved[name] = pl
+        bump()
+        return {"name": name, "state": public_state()}
+
+
 def handle_add(body):
     singer = str(body.get("singer", "")).strip()
     client = str(body.get("client", "")).strip()
@@ -215,21 +339,8 @@ def handle_add(body):
         if ID_RE.match(vid):
             items.append(make_item(vid, it.get("title"), it.get("channel"), singer, client))
 
-    for tok in re.split(r"[\s,]+", str(body.get("text", "")))[:100]:
-        if not tok:
-            continue
-        vid, lid = parse_id(tok), parse_list(tok)
-        if vid:
-            title, ch = fetch_meta(vid)
-            items.append(make_item(vid, title, ch, singer, client))
-        elif lid:
-            if not STATE["apiKey"]:
-                errors.append("การเพิ่มทั้งเพลย์ลิสต์ต้องตั้ง YouTube API key ที่จอหลักก่อน")
-                continue
-            found, err = fetch_playlist(lid, STATE["apiKey"])
-            if err:
-                errors.append(err)
-            items += [make_item(v, t, c, singer, client) for v, t, c in found]
+    more, errors, not_found = resolve_text(body.get("text", ""), STATE.get("mode", "karaoke"), singer, client)
+    items += more
 
     positions = []
     with LOCK:
@@ -247,8 +358,8 @@ def handle_add(body):
             else:
                 positions.append(find(STATE["queue"], it["uid"]) + 1)
         if not items and not errors:
-            errors.append("ไม่พบลิงก์ YouTube")
-        return {"added": len(items), "positions": positions, "errors": errors, "state": public_state()}
+            errors.append("ไม่พบเพลง ลองพิมพ์ชื่อเพลงให้ชัดขึ้น หรือวางลิงก์ YouTube")
+        return {"added": len(items), "positions": positions, "errors": errors, "notFound": not_found, "state": public_state()}
 
 
 def handle_action(body):
@@ -444,6 +555,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(handle_add(body))
         elif path == "/api/action":
             res = handle_action(body)
+            self.send_json(res, res.pop("status", 200) if "error" in res else 200)
+        elif path == "/api/list":
+            res = handle_list(body)
             self.send_json(res, res.pop("status", 200) if "error" in res else 200)
         elif path == "/api/tv":
             # heartbeat from a TV screen; only a started TV takes over playback

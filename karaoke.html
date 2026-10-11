@@ -60,6 +60,11 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .modecard b{font:600 1.2rem var(--f-display)}
 .modecard span{font-size:.88rem;color:var(--muted);line-height:1.45}
 .modecard.cur{border-color:var(--lyric);box-shadow:0 0 0 1px var(--lyric) inset}
+.stack{display:flex;flex-direction:column;gap:12px}
+.stack[hidden]{display:none!important}
+.edsong{grid-template-columns:auto 80px minmax(0,1fr) auto}
+.edsong img{width:80px}
+.edsong .acts{flex-direction:row}
 .kind{font-size:.75rem;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
 .kind.karaoke{color:var(--lyric);border-color:#ffb43d55}
 .kind.music{color:var(--cue);border-color:#7fd6c255}
@@ -227,7 +232,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
 
       <div class="pane" id="tab-queue">
         <div class="field">
-          <input id="quickLink" placeholder="วางลิงก์ YouTube แล้วกด Enter">
+          <input id="quickLink" placeholder="วางลิงก์ หรือพิมพ์ชื่อเพลง แล้วกด Enter">
           <button class="btn primary" id="quickAdd">เพิ่ม</button>
         </div>
         <div class="sec-title">ลำดับถัดไป <span><button class="btn ghost sm" id="shuffle">สุ่มลำดับ</button> <button class="btn ghost sm" id="clearQ">ล้างคิว</button></span></div>
@@ -245,8 +250,8 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
         <label class="toggle" id="karaToggle"><input type="checkbox" id="addKaraoke" checked> เติมคำว่า “คาราโอเกะ” ในการค้นหา</label>
         <p class="hint" id="searchHint"></p>
         <ul class="list results" id="results"></ul>
-        <div class="sec-title">วางหลายลิงก์พร้อมกัน</div>
-        <textarea id="bulk" placeholder="วางลิงก์ YouTube ทีละบรรทัด หรือลิงก์เพลย์ลิสต์ (list=...)"></textarea>
+        <div class="sec-title">วางหลายเพลงพร้อมกัน</div>
+        <textarea id="bulk" placeholder="ชื่อเพลง หรือลิงก์ YouTube ทีละบรรทัด&#10;ลิงก์เพลย์ลิสต์ (list=...) ก็ได้"></textarea>
         <button class="btn" id="bulkAdd">เพิ่มทั้งหมดเข้าคิว</button>
         <details>
           <summary>ตั้งค่า YouTube API key (ให้ค้นหาได้ทั้งจอนี้และมือถือ)</summary>
@@ -272,21 +277,66 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
       </div>
 
       <div class="pane" id="tab-lists" hidden>
-        <div class="sec-title">บันทึกคิวนี้เป็นเพลย์ลิสต์</div>
-        <div class="seg" id="saveKind" role="group" aria-label="ประเภทเพลย์ลิสต์">
-          <button data-kind="karaoke" aria-pressed="true">🎤 เพลย์ลิสต์คาราโอเกะ</button>
-          <button data-kind="music" aria-pressed="false">🎵 เพลย์ลิสต์เพลงฟัง</button>
+        <!-- playlist library -->
+        <div id="listsHome" class="stack">
+          <div class="sec-title">สร้างเพลย์ลิสต์ใหม่</div>
+          <div class="seg" id="newKind" role="group" aria-label="ประเภทเพลย์ลิสต์ใหม่">
+            <button data-kind="karaoke" aria-pressed="true">🎤 คาราโอเกะ</button>
+            <button data-kind="music" aria-pressed="false">🎵 เพลงฟัง</button>
+          </div>
+          <form class="field" id="newListForm">
+            <input id="newListName" placeholder="ตั้งชื่อ เช่น ลูกทุ่งมันๆ" maxlength="60" autocomplete="off">
+            <button class="btn primary" type="submit">สร้าง</button>
+          </form>
+          <p class="hint">สร้างแล้วจะเปิดหน้าแก้ไข ใส่เพลงได้โดยไม่แตะคิวที่กำลังเล่น</p>
+          <div id="savedLists" class="list"></div>
+          <details>
+            <summary>บันทึกคิวที่กำลังเล่นเป็นเพลย์ลิสต์</summary>
+            <div class="stack">
+              <div class="seg" id="saveKind" role="group" aria-label="ประเภทเพลย์ลิสต์">
+                <button data-kind="karaoke" aria-pressed="true">🎤 คาราโอเกะ</button>
+                <button data-kind="music" aria-pressed="false">🎵 เพลงฟัง</button>
+              </div>
+              <div class="field">
+                <input id="listName" placeholder="ตั้งชื่อเพลย์ลิสต์" maxlength="60">
+                <button class="btn primary" id="saveList">บันทึก</button>
+              </div>
+              <p class="hint">เก็บเพลงที่กำลังเล่นและคิวทั้งหมด ถ้าใช้ชื่อเดิมจะเขียนทับเพลย์ลิสต์นั้น</p>
+            </div>
+          </details>
+          <div class="sec-title">ย้ายไปเครื่องอื่น</div>
+          <div class="field">
+            <button class="btn" id="exportBtn">ส่งออกเป็นไฟล์ (.json)</button>
+            <label class="btn">นำเข้าไฟล์<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+          </div>
         </div>
-        <div class="field">
-          <input id="listName" placeholder="ตั้งชื่อเพลย์ลิสต์ เช่น ปาร์ตี้วันเสาร์">
-          <button class="btn primary" id="saveList">บันทึก</button>
-        </div>
-        <p class="hint">บันทึกเพลงที่กำลังเล่นและคิวทั้งหมด ตอนเปิดเพลย์ลิสต์ ห้องจะสลับเป็นประเภทของเพลย์ลิสต์นั้นให้เอง</p>
-        <div id="savedLists" class="list"></div>
-        <div class="sec-title">ย้ายไปเครื่องอื่น</div>
-        <div class="field">
-          <button class="btn" id="exportBtn">ส่งออกเป็นไฟล์ (.json)</button>
-          <label class="btn">นำเข้าไฟล์<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+
+        <!-- playlist editor -->
+        <div id="listEditor" class="stack" hidden>
+          <div><button class="btn ghost sm" id="edBack">← เพลย์ลิสต์ทั้งหมด</button></div>
+          <form class="field" id="edRenameForm">
+            <input id="edName" maxlength="60" aria-label="ชื่อเพลย์ลิสต์" autocomplete="off">
+            <button class="btn sm" type="submit">เปลี่ยนชื่อ</button>
+          </form>
+          <div class="seg" id="edKind" role="group" aria-label="ประเภทเพลย์ลิสต์">
+            <button data-kind="karaoke" aria-pressed="true">🎤 คาราโอเกะ</button>
+            <button data-kind="music" aria-pressed="false">🎵 เพลงฟัง</button>
+          </div>
+          <div class="sec-title"><span id="edCount">0 เพลง</span>
+            <span><button class="btn sm primary" id="edAppend">ต่อท้ายคิว</button> <button class="btn sm" id="edReplace">แทนคิว</button></span></div>
+          <ul class="list" id="edSongs"></ul>
+
+          <div class="sec-title">เพิ่มเพลงจากการค้นหา</div>
+          <form class="field" id="edSearchForm">
+            <input id="edQ" placeholder="ชื่อเพลง หรือ ศิลปิน" autocomplete="off">
+            <button class="btn primary" type="submit">ค้นหา</button>
+          </form>
+          <ul class="list results" id="edResults"></ul>
+
+          <div class="sec-title">วางรายชื่อเพลงทีละบรรทัด</div>
+          <textarea id="edBulk" placeholder="หนึ่งเพลงต่อบรรทัด เช่น&#10;คิดถึงเธอทุกที - เบิร์ด&#10;ยิ่งรักยิ่งห่างไกล&#10;หรือวางลิงก์ YouTube / ลิงก์เพลย์ลิสต์ก็ได้"></textarea>
+          <button class="btn" id="edBulkAdd">ค้นหาและเพิ่มทั้งหมด</button>
+          <p class="hint" id="edBulkMsg"></p>
         </div>
       </div>
     </aside>
@@ -327,6 +377,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     try {
       const j = await api('/api/add', { client:'host', singer:prefs.singer, ...payload });
       (j.errors||[]).forEach(toast);
+      if (j.notFound?.length) toast(`ไม่พบ: ${j.notFound.slice(0,3).join(', ')}${j.notFound.length > 3 ? ' …' : ''}`);
       if (j.added) toast(j.added === 1 ? 'เพิ่มเข้าคิวแล้ว' : `เพิ่ม ${j.added} เพลงเข้าคิวแล้ว`);
       return j.added || 0;
     } catch(e){ return 0; }
@@ -501,7 +552,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     const hl = $('#histList'); hl.innerHTML = '';
     if (!S.history.length) hl.innerHTML = `<li class="hint" style="padding:4px 2px">ยังไม่มี</li>`;
     S.history.slice(0, 30).forEach((it, i) => hl.appendChild(songRow(it, i, 'hist')));
-    renderSaved();
+    renderSaved(); renderEditor();
     const nm = (S.partyName || '').trim() || 'Oilkara';
     document.title = S.now ? `♪ ${S.now.title} · ${nm}` : nm;
   }
@@ -513,7 +564,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
   function renderSaved(){
     const box = $('#savedLists'); box.innerHTML = '';
     const names = Object.keys(S.saved || {});
-    if (!names.length) { box.innerHTML = `<div class="empty"><b>ยังไม่มีเพลย์ลิสต์</b>ต่อคิวให้ครบ เลือกประเภท ตั้งชื่อ แล้วกด “บันทึก”</div>`; return; }
+    if (!names.length) { box.innerHTML = `<div class="empty"><b>ยังไม่มีเพลย์ลิสต์</b>ตั้งชื่อด้านบนแล้วกด “สร้าง” เพื่อเริ่มใส่เพลง</div>`; return; }
     for (const [kind, label] of [['karaoke', '🎤 คาราโอเกะ'], ['music', '🎵 เพลงฟัง']]) {
       const group = names.filter(n => (S.saved[n].type || 'karaoke') === kind).sort();
       if (!group.length) continue;
@@ -524,6 +575,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
         d.innerHTML = `<span class="kind ${kind}">${kind === 'music' ? '🎵' : '🎤'}</span><span class="nm">${esc(name)}</span><span class="ct">${(S.saved[name].items || []).length} เพลง</span>
           <button class="btn sm primary" data-load="${esc(name)}" data-mode="append">ต่อท้ายคิว</button>
           <button class="btn sm" data-load="${esc(name)}" data-mode="replace">แทนคิว</button>
+          <button class="btn sm ghost" data-edit="${esc(name)}">แก้ไข</button>
           <button class="iconbtn del" data-delsaved="${esc(name)}" title="ลบ">✕</button>`;
         box.appendChild(d);
       });
@@ -615,6 +667,7 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     const l = e.target.closest('[data-load]'), d = e.target.closest('[data-delsaved]');
     if (l) act('loadList', { name:l.dataset.load, mode:l.dataset.mode }).then(() => { selectTab('queue'); toast(isMusic() ? 'เปิดเพลย์ลิสต์แล้ว ห้องเป็นโหมดเพลงฟัง' : 'เปิดเพลย์ลิสต์แล้ว ห้องเป็นโหมดคาราโอเกะ'); });
     else if (d) armConfirm(d, 'ลบ?', () => act('delList', { name:d.dataset.delsaved }));
+    else if (e.target.closest('[data-edit]')) openEditor(e.target.closest('[data-edit]').dataset.edit);
   });
   $('#exportBtn').onclick = () => {
     const data = { app:'oilkara', version:1, saved:S.saved };
@@ -627,6 +680,107 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     try { const j = JSON.parse(await f.text()); await act('importSaved', { saved:j.saved || {} }); toast('นำเข้าเพลย์ลิสต์แล้ว'); }
     catch(err){ toast('ไฟล์นี้ไม่ใช่ไฟล์เพลย์ลิสต์ของ Oilkara'); }
     e.target.value = '';
+  };
+
+  // ---------- playlist editor (works on saved playlists, never the live queue) ----------
+  let editing = null, renaming = false, newKind = null, edResults = [];
+  const listApi = (op, extra={}) => api('/api/list', { host:true, op, ...extra });
+  const kindOf = name => (S.saved?.[name]?.type === 'music' ? 'music' : 'karaoke');
+  function openEditor(name){
+    editing = name; $('#listsHome').hidden = true; $('#listEditor').hidden = false;
+    $('#edResults').innerHTML = ''; $('#edBulkMsg').textContent = ''; $('#edQ').value = '';
+    selectTab('lists'); renderEditor();
+  }
+  function closeEditor(){ editing = null; $('#listEditor').hidden = true; $('#listsHome').hidden = false; }
+  function renderEditor(){
+    document.querySelectorAll('#newKind [data-kind]').forEach(b => b.setAttribute('aria-pressed', b.dataset.kind === (newKind || (isMusic() ? 'music' : 'karaoke'))));
+    if (!editing) return;
+    const pl = S.saved?.[editing];
+    if (!pl) { if (!renaming) closeEditor(); return; }
+    if (document.activeElement !== $('#edName')) $('#edName').value = editing;
+    const k = kindOf(editing);
+    document.querySelectorAll('#edKind [data-kind]').forEach(b => b.setAttribute('aria-pressed', b.dataset.kind === k));
+    $('#edCount').textContent = `${pl.items.length} เพลง`;
+    $('#edBulkAdd').textContent = k === 'karaoke' ? 'ค้นหาเวอร์ชันคาราโอเกะและเพิ่มทั้งหมด' : 'ค้นหาและเพิ่มทั้งหมด';
+    const ul = $('#edSongs'); ul.innerHTML = '';
+    if (!pl.items.length) { ul.innerHTML = `<li class="empty"><b>ยังไม่มีเพลง</b>ค้นหาด้านล่าง หรือวางรายชื่อเพลงทีละบรรทัด</li>`; return; }
+    pl.items.forEach((it, i) => {
+      const li = document.createElement('li'); li.className = 'song edsong'; li.dataset.i = i;
+      li.innerHTML = `<span class="num">${i+1}</span><img src="${thumb(it.id)}" alt="" loading="lazy">
+        <div class="meta"><div class="title">${esc(it.title)}</div><div class="sub">${esc(it.channel)}</div></div>
+        <div class="acts"><button class="iconbtn" data-ed="up" title="เลื่อนขึ้น">↑</button><button class="iconbtn" data-ed="down" title="เลื่อนลง">↓</button><button class="iconbtn del" data-ed="del" title="เอาออก">✕</button></div>`;
+      ul.appendChild(li);
+    });
+  }
+  document.querySelectorAll('#newKind [data-kind]').forEach(b => b.onclick = () => { newKind = b.dataset.kind; renderEditor(); });
+  $('#newListForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('#newListName').value.trim();
+    if (!name) { toast('ตั้งชื่อเพลย์ลิสต์ก่อน'); $('#newListName').focus(); return; }
+    listApi('create', { name, kind:newKind || (isMusic() ? 'music' : 'karaoke') })
+      .then(j => { $('#newListName').value = ''; newKind = null; openEditor(j.name); setTimeout(() => $('#edQ').focus(), 0); }).catch(() => {});
+  });
+  $('#edBack').onclick = closeEditor;
+  $('#edRenameForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const newName = $('#edName').value.trim(), old = editing;
+    if (!newName || newName === old) return;
+    renaming = true; editing = newName;
+    listApi('rename', { name:old, newName }).then(() => toast('เปลี่ยนชื่อแล้ว'))
+      .catch(() => { editing = old; }).finally(() => { renaming = false; $('#edName').blur(); renderEditor(); });
+  });
+  document.querySelectorAll('#edKind [data-kind]').forEach(b => b.onclick = () => {
+    if (editing && b.dataset.kind !== kindOf(editing)) listApi('setType', { name:editing, kind:b.dataset.kind }).catch(() => {});
+  });
+  $('#edSongs').addEventListener('click', e => {
+    const b = e.target.closest('[data-ed]'); if (!b) return;
+    const i = +b.closest('.song').dataset.i;
+    if (b.dataset.ed === 'del') listApi('remove', { name:editing, index:i }).catch(() => {});
+    else listApi('move', { name:editing, index:i, to:b.dataset.ed === 'up' ? i-1 : i+1 }).catch(() => {});
+  });
+  $('#edAppend').onclick = () => act('loadList', { name:editing, mode:'append' }).then(() => toast('ต่อท้ายคิวแล้ว'));
+  $('#edReplace').onclick = function(){ armConfirm(this, 'ยืนยันแทนคิว?', () => act('loadList', { name:editing, mode:'replace' }).then(() => toast('แทนคิวด้วยเพลย์ลิสต์นี้แล้ว'))); };
+  $('#edSearchForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const raw = $('#edQ').value.trim(); if (!raw || !editing) return;
+    if (isLink(raw)) { addToList({ text:raw }); $('#edQ').value = ''; return; }
+    if (!S.hasKey) { toast('ค้นหาในแอปต้องตั้ง YouTube API key ที่แท็บ “ค้นหา” หรือวางลิงก์แทน'); return; }
+    const q = kindOf(editing) === 'karaoke' && !/karaoke|คาราโอเกะ/i.test(raw) ? `${raw} คาราโอเกะ` : raw;
+    const box = $('#edResults'); box.innerHTML = `<li class="hint">กำลังค้นหา…</li>`;
+    const r = await fetch('/api/search?q=' + encodeURIComponent(q)); const j = await r.json().catch(() => ({}));
+    if (!r.ok) { box.innerHTML = `<li class="empty"><b>ค้นหาไม่สำเร็จ</b>${esc(j.error || '')}</li>`; return; }
+    edResults = j.results || []; box.innerHTML = '';
+    if (!edResults.length) { box.innerHTML = `<li class="empty"><b>ไม่พบเพลง</b>ลองใช้คำค้นอื่น</li>`; return; }
+    edResults.forEach((it, i) => {
+      const li = document.createElement('li'); li.className = 'song';
+      li.innerHTML = `<img src="${thumb(it.id)}" alt="" loading="lazy"><div class="meta"><div class="title">${esc(it.title)}</div><div class="sub">${esc(it.channel)}</div>
+        <div class="acts"><button class="btn sm primary" data-edadd="${i}">เพิ่มในเพลย์ลิสต์</button></div></div>`;
+      box.appendChild(li);
+    });
+  });
+  $('#edResults').addEventListener('click', e => {
+    const b = e.target.closest('[data-edadd]'); if (!b) return;
+    b.disabled = true;
+    addToList({ items:[edResults[+b.dataset.edadd]] }).then(n => { b.textContent = n ? 'เพิ่มแล้ว ✓' : 'เพิ่มในเพลย์ลิสต์'; b.disabled = !!n; });
+  });
+  async function addToList(payload){
+    try {
+      const j = await listApi('add', { name:editing, ...payload });
+      (j.errors || []).forEach(toast);
+      return j.added || 0;
+    } catch(e){ return 0; }
+  }
+  $('#edBulkAdd').onclick = async () => {
+    const text = $('#edBulk').value.trim(); if (!text || !editing) return;
+    const btn = $('#edBulkAdd'), lines = text.split('\n').filter(l => l.trim()).length;
+    btn.disabled = true; $('#edBulkMsg').textContent = `กำลังค้นหา ${lines} รายการ…`;
+    try {
+      const j = await listApi('add', { name:editing, text });
+      const nf = j.notFound || [];
+      $('#edBulkMsg').textContent = `เพิ่ม ${j.added} เพลงแล้ว` + (nf.length ? ` · ไม่พบ ${nf.length} รายการ: ${nf.join(', ')}` : '') + ((j.errors || []).length ? ` · ${j.errors.join(' · ')}` : '');
+      $('#edBulk').value = nf.join('\n');   // keep only what still needs attention
+    } catch(e){ $('#edBulkMsg').textContent = 'เพิ่มไม่สำเร็จ ลองอีกครั้ง'; }
+    btn.disabled = false;
   };
 
   // ---------- tabs & controls ----------
