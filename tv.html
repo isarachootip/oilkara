@@ -97,6 +97,7 @@ body.hide-cursor{cursor:none}
   <h1>จอทีวี Oilkara</h1>
   <p>ลากหน้าต่างนี้ไปไว้บนจอทีวี แล้วกดปุ่มด้านล่าง วิดีโอจะขยายเต็มจอและเล่นต่อกันเอง ควบคุมคิวได้จากโน้ตบุ๊กหรือมือถือ</p>
   <button class="btn" id="startBtn">▶ เริ่มฉายบนจอนี้</button>
+  <button class="btn ghost" id="otherFs" hidden>ฉายเต็มจออีกจอหนึ่ง (จอที่สอง)</button>
   <button class="btn ghost" id="noFs">เริ่มโดยไม่เต็มจอ</button>
 </div>
 
@@ -224,6 +225,19 @@ body.hide-cursor{cursor:none}
   }
   $('#startBtn').onclick = () => go(true);
   $('#noFs').onclick = () => go(false);
+  // fullscreen on the other monitor without dragging (Chrome/Edge window-management permission)
+  if ('getScreenDetails' in window && window.screen.isExtended !== false) {
+    $('#otherFs').hidden = false;
+    $('#otherFs').onclick = async () => {
+      try {
+        const sd = await window.getScreenDetails();
+        const other = sd.screens.find(s => s !== sd.currentScreen);
+        if (!other) { toast('เบราว์เซอร์เห็นจอเดียว ตั้งจอเป็นแบบ Extend ก่อน (Win + P)'); return; }
+        await document.documentElement.requestFullscreen({ screen:other });
+        go(false);
+      } catch(e){ toast('ไม่ได้รับอนุญาตให้ใช้จอที่สอง ลากหน้าต่างไปที่ทีวีแล้วกด “เริ่มฉายบนจอนี้”'); }
+    };
+  }
 
   document.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();

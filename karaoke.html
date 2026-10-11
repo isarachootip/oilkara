@@ -578,7 +578,21 @@ kbd{font:500 .75rem var(--f-body);border:1px solid var(--line);border-bottom-wid
     if (tvOn()) { act('cmd', { cmd:'restart' }); return; }
     if (ready) { player.seekTo(0, true); player.playVideo(); }
   };
-  const openTv = () => { if (!window.open('/tv', 'oilkara-tv', 'popup,width=1280,height=720')) location.href = '/tv'; };
+  // open the TV window directly on the other monitor when Chrome's window-management permission allows it
+  const openTv = async () => {
+    let feat = 'popup,width=1280,height=720';
+    try {
+      if ('getScreenDetails' in window) {
+        const sd = await window.getScreenDetails();
+        const other = sd.screens.find(s => s !== sd.currentScreen);
+        if (other) feat = `popup,left=${other.availLeft},top=${other.availTop},width=${other.availWidth},height=${other.availHeight}`;
+        else toast('เบราว์เซอร์เห็นจอเดียว ตรวจว่าตั้งจอเป็นแบบ Extend (Win + P)');
+      }
+    } catch(e){ /* permission declined: open a normal window to drag */ }
+    const w = window.open('/tv', 'oilkara-tv', feat);
+    if (!w) { toast('เบราว์เซอร์บล็อกหน้าต่างใหม่ อนุญาต pop-up สำหรับ localhost แล้วกดอีกครั้ง'); return; }
+    toast('ที่จอทีวี กด “เริ่มฉายบนจอนี้” หนึ่งครั้ง');
+  };
   $('#openTv').onclick = openTv;
   const fullscreen = () => { if (tvOn()) { toast('กด F ที่หน้าต่างจอทีวีเพื่อสลับเต็มจอ'); return; } const el = $('#screen'); try { (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen())?.catch?.(() => {}); } catch(e){} };
   $('#btnPlay').onclick = togglePlay;
